@@ -1,0 +1,109 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Base palette — shared across modes */
+    --background: 0 0% 6%;
+    --foreground: 0 0% 95%;
+
+    --card: 0 0% 10%;
+    --card-foreground: 0 0% 95%;
+
+    --popover: 0 0% 10%;
+    --popover-foreground: 0 0% 95%;
+
+    --muted: 0 0% 15%;
+    --muted-foreground: 0 0% 55%;
+
+    --border: 0 0% 18%;
+    --input: 0 0% 18%;
+    --ring: 207 68% 53%;
+
+    --radius: 0.75rem;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+
+    /* Default: Friends Mode accents */
+    --primary: 207 68% 53%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 172 62% 42%;
+    --secondary-foreground: 0 0% 100%;
+
+    --accent: 207 68% 53%;
+    --accent-foreground: 0 0% 100%;
+
+    /* Sidebar */
+    --sidebar-background: 0 0% 8%;
+    --sidebar-foreground: 0 0% 75%;
+    --sidebar-primary: 207 68% 53%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 0 0% 14%;
+    --sidebar-accent-foreground: 0 0% 95%;
+    --sidebar-border: 0 0% 16%;
+    --sidebar-ring: 207 68% 53%;
+
+    /* Custom gradient endpoints */
+    --gradient-from: 207 68% 53%;
+    --gradient-to: 172 62% 42%;
+  }
+
+  /* Dating Mode overrides */
+  [data-mode="dating"] {
+    --primary: 0 100% 66%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 330 56% 50%;
+    --secondary-foreground: 0 0% 100%;
+
+    --accent: 0 100% 66%;
+    --accent-foreground: 0 0% 100%;
+
+    --ring: 0 100% 66%;
+
+    --sidebar-primary: 0 100% 66%;
+    --sidebar-ring: 0 100% 66%;
+
+    --gradient-from: 0 100% 66%;
+    --gradient-to: 330 56% 50%;
+  }
+
+  /* Light Mode */
+  [data-theme="light"] {
+    --background: 0 0% 98%;
+    --foreground: 0 0% 10%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 10%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 10%;
+
+    --muted: 0 0% 92%;
+    --muted-foreground: 0 0% 40%;
+
+    --border: 0 0% 85%;
+    --input: 0 0% 85%;
+
+    --destructive: 0 84% 50%;
+    --destructive-foreground: 0 0% 98%;
+
+    --sidebar-background: 0 0% 96%;
+    --sidebar-foreground: 0 0% 35%;
+    --sidebar-accent: 0 0% 90%;
+    --sidebar-accent-foreground: 0 0% 10%;
+    --sidebar-border: 0 0% 88%;
+  }
+
+  * {
+    @apply border-border;
+    transition: background-color 300ms ease, color 300ms ease, border-color 300ms ease;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}

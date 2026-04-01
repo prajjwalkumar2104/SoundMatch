@@ -1,0 +1,7 @@
+node_modules/
+.env
+dist/
+build/
+.DS_Store
+backend_soundmatch/node_modules/
+tempo-match-spark/node_modules/
