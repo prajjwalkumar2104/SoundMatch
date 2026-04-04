@@ -36,6 +36,7 @@ const navItems = [
   { title: "Events", url: "/events", icon: CalendarDays },
   { title: "Stats", url: "/stats", icon: BarChart3 },
   { title: "Weekly Report", url: "/weekly-report", icon: FileText },
+  { title: "Spotify", url: "/spotify", icon: Music },
   { title: "My Profile", url: "/me", icon: User },
 ];
 

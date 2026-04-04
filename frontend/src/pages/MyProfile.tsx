@@ -1,109 +1,176 @@
-import { currentUser } from "@/data/mockUsers";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { GenreHeatmap } from "@/components/GenreHeatmap";
 import { MusicRadarChart } from "@/components/MusicRadarChart";
+import { getSpotifyAuthUrl } from "@/services/auth";
 import { ProfileThemePicker } from "@/components/ProfileThemePicker";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Music, Edit } from "lucide-react";
-import { useState } from "react";
 import { Textarea } from "@/components/ui/textarea";
 
+import { currentUser as mockUser } from "@/data/mockUsers"; 
+import { useEffect, useState } from "react";
+import api from "@/lib/api"; 
+
+
+// 1. Define the interface so TypeScript doesn't throw errors
+interface UserProfile {
+  name: string;
+  bio: string;
+  avatar: string;
+  topGenres: string[];
+  topArtists: string[];
+  musicDna: any;
+  spotify_connected?: boolean; // Matches your Supabase column
+}
+
 const MyProfile = () => {
-  const [bio, setBio] = useState(currentUser.bio);
+  // 2. State initialized with Mock Data
+  const [user, setUser] = useState<UserProfile>(mockUser as UserProfile);
+  const [bio, setBio] = useState(user.bio);
   const [editing, setEditing] = useState(false);
   const [profileColor, setProfileColor] = useState("207 68% 53%");
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  useEffect(() => {
+  const fetchRealProfile = async () => {
+    try {
+      // Get the ID we manually set (which is "1")
+      const userId = localStorage.getItem('userId') || "1"; 
+      
+      // Pass the userId as a query parameter so the backend knows who to fetch
+      const response = await api.get(`/user/profile?userId=${userId}`);
+      
+      if (response.data) {
+        setUser(response.data); // This overwrites mock data with Supabase data
+        setIsLoggedIn(true);    // Hides the "Guest" banner
+      }
+    } catch (err) {
+      console.warn("API check failed, staying on mock data.");
+      setIsLoggedIn(false);
+    }
+  };
+
+  fetchRealProfile();
+}, []);
+
+  const handleConnectSpotify = async () => {
+    try {
+      const authUrl = await getSpotifyAuthUrl();
+      window.location.href = authUrl; 
+    } catch (error) {
+      alert("Failed to connect to Spotify. Is the backend running?");
+    }
+  };
+
+  const handleSaveBio = () => {
+    // Optional: Add api.patch('/user/profile', { bio }) here
+    setEditing(false);
+  };
 
   return (
     <AppLayout>
-      <div className="max-w-3xl mx-auto">
-        <div className="flex items-center gap-5 mb-8">
+      <div className="max-w-3xl mx-auto pb-10">
+        {!isLoggedIn && (
+          <div className="bg-amber-500/10 border border-amber-500/20 text-amber-500 p-3 rounded-lg mb-6 text-sm text-center font-medium">
+            Viewing as Guest (Mock Data). Log in to sync your Spotify.
+          </div>
+        )}
+
+        {/* Header Section */}
+        <div className="flex flex-col md:flex-row items-center gap-6 mb-8">
           <div
-            className="p-[3px] rounded-full"
+            className="p-[4px] rounded-full shrink-0"
             style={{ background: `linear-gradient(135deg, hsl(${profileColor}), hsl(${profileColor} / 0.4))` }}
           >
-            <img src={currentUser.avatar} alt="You" className="h-24 w-24 rounded-full border-2 border-background bg-muted" />
+            <img src={user.avatar} alt={user.name} className="h-28 w-28 rounded-full border-4 border-background bg-muted object-cover" />
           </div>
-          <div className="flex-1">
-            <h1 className="text-2xl font-bold text-foreground">{currentUser.name}</h1>
+          
+          <div className="flex-1 text-center md:text-left">
+            <h1 className="text-3xl font-bold text-foreground mb-2">{user.name}</h1>
+            
             {editing ? (
               <div className="mt-2 space-y-2">
-                <Textarea value={bio} onChange={(e) => setBio(e.target.value)} className="bg-muted border-border" />
-                <Button size="sm" onClick={() => setEditing(false)}>Save</Button>
+                <Textarea value={bio} onChange={(e) => setBio(e.target.value)} className="bg-muted border-border min-h-[80px]" />
+                <Button size="sm" onClick={handleSaveBio}>Save Changes</Button>
               </div>
             ) : (
-              <div className="flex items-center gap-2 mt-1">
-                <p className="text-muted-foreground">{bio}</p>
-                <button onClick={() => setEditing(true)} className="text-muted-foreground hover:text-foreground transition-colors">
-                  <Edit className="h-3.5 w-3.5" />
+              <div className="flex items-center justify-center md:justify-start gap-2">
+                <p className="text-muted-foreground italic">"{bio}"</p>
+                <button onClick={() => setEditing(true)} className="text-muted-foreground hover:text-primary transition-colors">
+                  <Edit className="h-4 w-4" />
                 </button>
               </div>
             )}
-            <div className="flex flex-wrap gap-1.5 mt-3">
-              {currentUser.topGenres.map((g) => (
-                <Badge key={g} variant="secondary" className="bg-muted text-muted-foreground border-0 text-xs">{g}</Badge>
+            
+            <div className="flex flex-wrap justify-center md:justify-start gap-2 mt-4">
+              {user.topGenres.map((g) => (
+                <Badge key={g} variant="secondary" className="px-3 py-1 font-medium tracking-wide">{g}</Badge>
               ))}
             </div>
           </div>
         </div>
 
-        {/* Profile Theme Picker */}
-        <Card className="border-border/50 mb-4">
-          <CardContent className="p-5">
+        {/* Theme Picker Card */}
+        <Card className="border-border/50 mb-6 bg-card/50 backdrop-blur-sm">
+          <CardContent className="p-4">
             <ProfileThemePicker selectedColor={profileColor} onSelect={setProfileColor} />
           </CardContent>
         </Card>
 
-        <div className="grid gap-4 md:grid-cols-2">
-          <Card className="border-border/50 hover:border-primary/30 transition-colors">
+        {/* Music Stats Grid */}
+        <div className="grid gap-6 md:grid-cols-2">
+          <Card className="border-border/50 hover:border-primary/30 transition-all duration-300">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Your Music DNA</CardTitle>
+              <CardTitle className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Music DNA Analysis</CardTitle>
             </CardHeader>
             <CardContent>
-              <MusicRadarChart userA={currentUser.musicDna} />
+              <MusicRadarChart userA={user.musicDna} />
             </CardContent>
           </Card>
 
-          <div className="space-y-4">
-            <Card className="border-border/50 hover:border-primary/30 transition-colors">
+          <div className="space-y-6">
+            <Card className="border-border/50 hover:border-primary/30 transition-all">
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Top Artists</CardTitle>
+                <CardTitle className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Favorite Artists</CardTitle>
               </CardHeader>
               <CardContent>
-                <ul className="space-y-1.5">
-                  {currentUser.topArtists.map((a, i) => (
-                    <li key={a} className="text-sm text-foreground flex items-center gap-2 hover:translate-x-1 transition-transform">
-                      <span className="text-primary font-mono text-xs">{i + 1}.</span> {a}
-                    </li>
-                  ))}
+                <ul className="space-y-2">
+                  {user.topArtists.length > 0 ? (
+                    user.topArtists.map((artist, i) => (
+                      <li key={artist} className="text-sm font-medium flex items-center gap-3 group">
+                        <span className="text-primary/60 font-mono text-xs">{i + 1}.</span> 
+                        <span className="group-hover:translate-x-1 transition-transform">{artist}</span>
+                      </li>
+                    ))
+                  ) : (
+                    <li className="text-sm text-muted-foreground">No artists synced yet.</li>
+                  )}
                 </ul>
               </CardContent>
             </Card>
-            <Card className="border-border/50 hover:border-primary/30 transition-colors">
+
+            <Card className="border-border/50">
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Top Tracks</CardTitle>
+                <CardTitle className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Genre Heatmap</CardTitle>
               </CardHeader>
               <CardContent>
-                <ul className="space-y-1.5">
-                  {currentUser.topTracks.map((t) => (
-                    <li key={t} className="text-sm text-foreground flex items-center gap-2 hover:translate-x-1 transition-transform">
-                      <Music className="h-3 w-3 text-primary" /> {t}
-                    </li>
-                  ))}
-                </ul>
+                <GenreHeatmap />
               </CardContent>
             </Card>
           </div>
         </div>
 
-        <div className="mt-4">
-          <GenreHeatmap />
-        </div>
-
-        <div className="mt-6">
-          <Button variant="outline" className="gap-2 hover:scale-105 transition-transform">
-            <Music className="h-4 w-4" /> Connect Spotify
+        {/* Spotify Connection Button */}
+        <div className="mt-10 flex justify-center">
+          <Button 
+            onClick={handleConnectSpotify}
+            variant={user.spotify_connected ? "secondary" : "default"} 
+            className={`gap-3 px-8 h-12 text-md transition-all ${!user.spotify_connected && 'animate-shimmer bg-gradient-to-r from-green-500 to-emerald-600 border-none hover:opacity-90 text-white'}`}
+          >
+            <Music className={`h-5 w-5 ${user.spotify_connected ? 'text-green-500' : 'text-white'}`} /> 
+            {user.spotify_connected ? "Spotify Connected" : "Sync Spotify DNA"}
           </Button>
         </div>
       </div>

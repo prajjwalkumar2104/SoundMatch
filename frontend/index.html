@@ -17,5 +17,14 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+  // Define the function globally immediately
+  window.onSpotifyWebPlaybackSDKReady = () => {
+    // This will be overridden by your React component later
+    console.log("Spotify SDK script loaded and ready.");
+  };
+</script>
+
+<script src="https://sdk.scdn.co/spotify-player.js"></script>
   </body>
 </html>

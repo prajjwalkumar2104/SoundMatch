@@ -3,10 +3,13 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { ModeProvider } from "@/contexts/ModeContext";
+import { ModeProvider } from "@/contexts/ModeContext.tsx";
 import Landing from "./pages/Landing.tsx";
 import Index from "./pages/Index.tsx";
 import Profile from "./pages/Profile.tsx";
+import SpotifyConnect from "./pages/SpotifyConnect.tsx";
+import AuthCallback from "./pages/AuthCallback.tsx";
+// import  Login from "./pages/Login.tsx";
 import MyProfile from "./pages/MyProfile.tsx";
 import Matches from "./pages/Matches.tsx";
 import MusicLounge from "./pages/MusicLounge.tsx";
@@ -42,6 +45,9 @@ const App = () => (
             <Route path="/onboarding" element={<Onboarding />} />
             <Route path="/stats" element={<ListeningStats />} />
             <Route path="/weekly-report" element={<WeeklyReport />} />
+            {/* <Route path="/login" element={<Login />} /> */}
+            <Route path="/auth/callback/:provider" element={<AuthCallback />} />
+            <Route path="/spotify" element={<SpotifyConnect />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
