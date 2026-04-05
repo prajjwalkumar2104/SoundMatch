@@ -46,12 +46,7 @@ const getSpotifyUrl = (req, res) => {
 };
 app.get('/api/auth/spotify/status/:userId', async (req, res) => {
   const { userId } = req.params;
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('spotify_connected, username, avatar_url, top_artists')
-    .eq('id', userId)
-    .single();
-
+  const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).single();
   if (error) return res.status(400).json(error);
   res.json(data);
 });
@@ -110,6 +105,35 @@ const spotifyCallback = async (req, res) => {
   }
 };
 
+// Get User's Top Tracks for the Lounge Queue
+app.get('/api/spotify/top-tracks', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization; // "Bearer <TOKEN>"
+    if (!authHeader) return res.status(401).json({ error: "No token provided" });
+
+    // Use axios.get and ensure the URL is correct
+    const response = await axios.get('https://api.spotify.com/v1/me/top/tracks', {
+      headers: { 
+        'Authorization': authHeader // Pass the "Bearer ..." string directly
+      }
+    });
+
+    const tracks = response.data.items.map(track => ({
+      id: track.id,
+      title: track.name,
+      artist: track.artists[0].name,
+      uri: track.uri,
+      duration_ms: track.duration_ms,
+      image: track.album.images[0]?.url
+    }));
+
+    res.json(tracks);
+  } catch (error) {
+    // This will print the actual Spotify error in your terminal
+    console.error("SPOTIFY API ERROR:", error.response?.data || error.message);
+    res.status(500).json({ error: "Failed to fetch tracks" });
+  }
+});
 
 app.post('/api/auth/spotify/disconnect', async (req, res) => {
   const { userId } = req.body;

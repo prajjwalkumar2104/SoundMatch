@@ -21,6 +21,7 @@ import Onboarding from "./pages/Onboarding.tsx";
 import ListeningStats from "./pages/ListeningStats.tsx";
 import WeeklyReport from "./pages/WeeklyReport.tsx";
 import NotFound from "./pages/NotFound.tsx";
+import { MusicProvider } from "./contexts/MusicContext.tsx";
 
 const queryClient = new QueryClient();
 
@@ -30,6 +31,7 @@ const App = () => (
       <ModeProvider>
         <Toaster />
         <Sonner />
+        <MusicProvider>
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<Landing />} />
@@ -51,6 +53,7 @@ const App = () => (
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
+        </MusicProvider>
       </ModeProvider>
     </TooltipProvider>
   </QueryClientProvider>

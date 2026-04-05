@@ -1,7 +1,7 @@
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Play, Pause, SkipForward, SkipBack, Volume2, MessageCircle, X, Music, Plus } from "lucide-react";
+import { Play, Pause, SkipForward, SkipBack, Volume2, MessageCircle, X, Music, Plus, Loader2 } from "lucide-react";
 import { ChatBubble } from "@/components/ChatBubble";
 import { AudioVisualizer } from "@/components/AudioVisualizer";
 import { useState, useEffect } from "react";
@@ -9,15 +9,16 @@ import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
+import { useMusic } from "@/contexts/MusicContext";
 
-// --- Types for TypeScript ---
-interface SpotifyTrack {
-  name: string;
+// --- Data Types ---
+interface Track {
+  id: string;
+  title: string;
+  artist: string;
   uri: string;
-  album: {
-    images: { url: string }[];
-  };
-  artists: { name: string }[];
+  duration_ms: number;
+  image: string;
 }
 
 const mockMessages = [
@@ -26,97 +27,32 @@ const mockMessages = [
   { sender: "Luna", message: "Can we queue up some Bonobo next?", isSelf: false, time: "2:32 PM" },
 ];
 
-const queue = [
-  { id: "1", title: "Dreams Tonite", artist: "Alvvays", duration: "3:45", uri: "spotify:track:0979Zfo7p0997pSTvS669S" },
-  { id: "2", title: "Innerbloom", artist: "Rüfüs Du Sol", duration: "9:30", uri: "spotify:track:599pSTvS669S0979Zfo7p0" },
-  { id: "3", title: "Kerala", artist: "Bonobo", duration: "3:48", uri: "spotify:track:27pSTvS669S0979Zfo7p09" },
-  { id: "4", title: "Myth", artist: "Beach House", duration: "4:20", uri: "spotify:track:4cOdK2wGqyR7v9A9ncY03o" },
-  { id: "5", title: "Midnight City", artist: "M83", duration: "4:03", uri: "spotify:track:16pSTvS669S0979Zfo7p09" },
-];
-
 const MusicLounge = () => {
-  const [playing, setPlaying] = useState(false);
+  const { playing, currentTrack, position, duration, player, playTrack, setPosition } = useMusic();
   const [chatOpen, setChatOpen] = useState(true);
-  const [player, setPlayer] = useState<any>(null);
-  const [deviceId, setDeviceId] = useState<string>("");
-  const [currentTrack, setCurrentTrack] = useState<SpotifyTrack | null>(null);
-  const [position, setPosition] = useState(0);
-  const [duration, setDuration] = useState(0);
+  const [realQueue, setRealQueue] = useState<Track[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // --- 1. HEARTBEAT EFFECT ---
+  // --- Fetch Real Spotify Data ---
   useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (playing) {
-      interval = setInterval(() => {
-        setPosition((prev) => (prev + 1000 >= duration ? duration : prev + 1000));
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [playing, duration]);
-
-  // --- 2. SDK INITIALIZATION & RE-SYNC ---
-  useEffect(() => {
-    const token = localStorage.getItem("spotify_access_token");
-    if (!token) return;
-
-    const setupPlayer = () => {
-      const spotifyPlayer = new window.Spotify.Player({
-        name: 'SoundMatch Lounge',
-        getOAuthToken: (cb: any) => cb(token),
-        volume: 0.5
-      });
-
-      spotifyPlayer.addListener('ready', ({ device_id }: any) => {
-        setDeviceId(device_id);
-        console.log('Ready with Device ID', device_id);
-        
-        // Sync state immediately if music is already playing background
-        spotifyPlayer.getCurrentState().then((state: any) => {
-          if (state) {
-            setCurrentTrack(state.track_window.current_track);
-            setPlaying(!state.paused);
-            setPosition(state.position);
-            setDuration(state.duration);
-          }
+    const fetchMyTopTracks = async () => {
+      const token = localStorage.getItem("spotify_access_token");
+      if (!token) return;
+      try {
+        const response = await fetch('http://127.0.0.1:5000/api/spotify/top-tracks', {
+          headers: { 'Authorization': `Bearer ${token}` }
         });
-      });
-
-      spotifyPlayer.addListener('player_state_changed', (state: any) => {
-        if (!state) return;
-        setCurrentTrack(state.track_window.current_track);
-        setPlaying(!state.paused);
-        setPosition(state.position);
-        setDuration(state.duration);
-      });
-
-      spotifyPlayer.connect();
-      setPlayer(spotifyPlayer);
+        if (!response.ok) throw new Error("Failed to fetch tracks");
+        const data = await response.json();
+        setRealQueue(data);
+      } catch (err) {
+        console.error("Queue Fetch Error:", err);
+      } finally {
+        setIsLoading(false);
+      }
     };
-
-    window.onSpotifyWebPlaybackSDKReady = setupPlayer;
-    if (window.Spotify) setupPlayer();
-
-    return () => {
-      // Avoid disconnecting the player here if you want music to keep playing 
-      // globally while navigating other pages.
-    };
+    fetchMyTopTracks();
   }, []);
-
-  // --- HANDLERS ---
-  const handleTogglePlay = () => player?.togglePlay();
-
-  const playSpecificTrack = async (uri: string) => {
-    if (!deviceId) return;
-    const token = localStorage.getItem("spotify_access_token");
-    await fetch(`https://api.spotify.com/v1/me/player/play?device_id=$${deviceId}`, {
-      method: 'PUT',
-      body: JSON.stringify({ uris: [uri] }),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-    });
-  };
 
   const formatTime = (ms: number) => {
     const min = Math.floor(ms / 60000);
@@ -127,12 +63,16 @@ const MusicLounge = () => {
   return (
     <AppLayout>
       <div className="max-w-6xl mx-auto h-[calc(100vh-5rem)] flex gap-0 overflow-hidden relative">
+        
+        {/* Main Player Area - Added overflow-y-auto to fix the scroll issue */}
         <div className="flex-1 min-w-0 flex flex-col p-4 overflow-y-auto custom-scrollbar">
           
           <div className="flex items-center justify-between mb-6">
             <div>
               <h1 className="text-3xl font-bold text-foreground tracking-tight">Music Lounge</h1>
-              <p className="text-muted-foreground text-sm">Listen together in real-time · 3 people here</p>
+              <p className="text-muted-foreground text-sm">
+                Playing from your Spotify Top Tracks · <span className="text-emerald-500">Live Sync</span>
+              </p>
             </div>
             {!chatOpen && (
               <Button variant="outline" size="sm" onClick={() => setChatOpen(true)}>
@@ -141,35 +81,40 @@ const MusicLounge = () => {
             )}
           </div>
 
-          <Card className="border-border/50 mb-6 bg-card/50 backdrop-blur-sm shrink-0">
+          {/* Now Playing Card */}
+          <Card className="border-border/50 mb-6 bg-card/50 backdrop-blur-sm shrink-0 shadow-xl">
             <CardContent className="p-6">
               <div className="flex items-center gap-6 mb-6">
-                <div className="h-32 w-32 rounded-2xl overflow-hidden shadow-2xl bg-muted shrink-0 border border-border/50">
+                <div className="h-36 w-36 rounded-2xl overflow-hidden shadow-2xl bg-muted shrink-0 border border-border/50">
                   {currentTrack?.album?.images?.[0]?.url ? (
                     <img src={currentTrack.album.images[0].url} alt="Cover" className="h-full w-full object-cover" />
                   ) : (
-                    <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-primary/20 to-secondary/20">
-                      <Volume2 className="h-10 w-10 text-primary/40" />
+                    <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-primary/10 to-secondary/10">
+                      <Music className="h-12 w-12 text-primary/30" />
                     </div>
                   )}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h2 className="text-2xl font-bold text-foreground truncate">{currentTrack?.name || "Ready to Vibe?"}</h2>
+                  <h2 className="text-2xl font-bold text-foreground truncate">
+                    {currentTrack?.name || "Ready to Vibe?"}
+                  </h2>
                   <p className="text-lg text-muted-foreground truncate">
-                    {currentTrack?.artists?.map(a => a.name).join(", ") || "Select a track to start listening"}
+                    {currentTrack?.artists?.map((a: any) => a.name).join(", ") || "Pick a track from your queue below"}
                   </p>
                   <div className="flex items-center gap-2 mt-3">
-                    <Badge variant="secondary" className="bg-primary/10 text-primary border-none">Live Sync</Badge>
-                    <Badge variant="outline" className="text-[10px] uppercase tracking-wider">High Fidelity</Badge>
+                    <Badge variant="secondary" className="bg-primary/10 text-primary border-none font-mono text-[10px]">
+                      {playing ? "STREAMING LIVE" : "PAUSED"}
+                    </Badge>
+                    <Badge variant="outline" className="text-[10px] uppercase tracking-widest opacity-50">320kbps</Badge>
                   </div>
                 </div>
               </div>
 
-              <AudioVisualizer playing={playing} className="mb-6 rounded-xl overflow-hidden h-16" />
+              <AudioVisualizer playing={playing} className="mb-6 rounded-xl overflow-hidden h-14" />
 
               <div className="space-y-4">
                 <div className="flex items-center gap-3 text-xs font-mono text-muted-foreground">
-                  <span>{formatTime(position)}</span>
+                  <span className="w-10 text-right">{formatTime(position)}</span>
                   <Slider 
                     value={[duration > 0 ? (position / duration) * 100 : 0]} 
                     max={100} 
@@ -181,62 +126,100 @@ const MusicLounge = () => {
                       player?.seek(newPos);
                     }}
                   />
-                  <span>{formatTime(duration)}</span>
+                  <span className="w-10">{formatTime(duration)}</span>
                 </div>
 
                 <div className="flex items-center justify-center gap-8">
-                  <Button variant="ghost" size="icon" onClick={() => player?.previousTrack()}><SkipBack className="h-6 w-6" /></Button>
-                  <Button size="icon" className="h-16 w-16 rounded-full shadow-lg" onClick={handleTogglePlay}>
+                  <Button variant="ghost" size="icon" onClick={() => player?.previousTrack()}>
+                    <SkipBack className="h-6 w-6" />
+                  </Button>
+                  <Button size="icon" className="h-16 w-16 rounded-full shadow-lg bg-primary text-primary-foreground" onClick={() => player?.togglePlay()}>
                     {playing ? <Pause className="h-8 w-8" /> : <Play className="h-8 w-8 ml-1" />}
                   </Button>
-                  <Button variant="ghost" size="icon" onClick={() => player?.nextTrack()}><SkipForward className="h-6 w-6" /></Button>
+                  <Button variant="ghost" size="icon" onClick={() => player?.nextTrack()}>
+                    <SkipForward className="h-6 w-6" />
+                  </Button>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="border-border/50 bg-card/30 mb-4 h-[300px] shrink-0">
-            <CardContent className="p-0 h-full flex flex-col">
-              <div className="p-4 border-b border-border/50 bg-muted/30">
-                <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Live Queue</p>
+          {/* Real Queue List - Changed flex-1 to min-h-[400px] to ensure it shows up */}
+          <div className="space-y-4 mb-8">
+            <Card className="border-border/50 bg-card/30 flex flex-col overflow-hidden min-h-[400px]">
+              <div className="p-4 border-b border-border/50 bg-muted/20 flex justify-between items-center">
+                <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Lounge Queue</p>
+                <Badge variant="outline" className="text-[10px]">{realQueue.length} Tracks</Badge>
               </div>
+              
               <ScrollArea className="flex-1 px-2">
-                {queue.map((track, i) => (
-                  <div key={track.id} onClick={() => playSpecificTrack(track.uri)} className="flex items-center gap-4 p-3 my-1 rounded-xl group hover:bg-primary/5 cursor-pointer transition-all">
-                    <span className="text-xs font-mono text-muted-foreground w-4 text-center">{i + 1}</span>
-                    <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center group-hover:bg-primary/20"><Play className="h-4 w-4 text-muted-foreground group-hover:text-primary fill-current" /></div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold truncate">{track.title}</p>
-                      <p className="text-xs text-muted-foreground truncate">{track.artist}</p>
-                    </div>
-                    <span className="text-xs font-mono text-muted-foreground">{track.duration}</span>
+                {isLoading ? (
+                  <div className="flex flex-col items-center justify-center h-40 space-y-3">
+                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                    <p className="text-xs text-muted-foreground">Fetching your Spotify vibe...</p>
                   </div>
-                ))}
+                ) : (
+                  <div className="py-2">
+                    {realQueue.map((track, i) => (
+                      <div 
+                        key={track.id} 
+                        onClick={() => playTrack(track.uri)} 
+                        className={`flex items-center gap-4 p-3 my-1 rounded-xl group cursor-pointer transition-all border border-transparent ${
+                          currentTrack?.uri === track.uri 
+                          ? "bg-primary/10 border-primary/20 shadow-sm" 
+                          : "hover:bg-primary/5"
+                        }`}
+                      >
+                        <span className="text-[10px] font-mono text-muted-foreground w-4 text-center">
+                          {currentTrack?.uri === track.uri ? "🔊" : i + 1}
+                        </span>
+                        <div className="h-10 w-10 rounded-lg overflow-hidden shrink-0 border border-border/50 shadow-sm">
+                          <img src={track.image} alt="Art" className="h-full w-full object-cover" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className={`text-sm font-semibold truncate ${currentTrack?.uri === track.uri ? "text-primary" : "text-foreground"}`}>
+                            {track.title}
+                          </p>
+                          <p className="text-xs text-muted-foreground truncate">{track.artist}</p>
+                        </div>
+                        <span className="text-[10px] font-mono text-muted-foreground opacity-60">
+                          {formatTime(track.duration_ms)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </ScrollArea>
-            </CardContent>
-          </Card>
+            </Card>
 
-          <Card className="border-border/50 bg-card/10 border-dashed mb-8">
-            <CardContent className="p-4">
-              <p className="text-[10px] font-bold text-muted-foreground uppercase mb-3">Lounge Library</p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                {queue.map((track) => (
-                  <div key={`lib-${track.id}`} onClick={() => playSpecificTrack(track.uri)} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 cursor-pointer border border-transparent hover:border-border/50 transition-all group">
-                    <div className="h-8 w-8 rounded bg-muted flex items-center justify-center"><Music className="h-3 w-3 text-muted-foreground group-hover:text-primary" /></div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[11px] font-medium truncate">{track.title}</p>
-                      <p className="text-[9px] text-muted-foreground truncate">{track.artist}</p>
-                    </div>
-                    <Plus className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100" />
+            {/* Library / Suggested */}
+            {!isLoading && realQueue.length > 0 && (
+               <Card className="border-border/50 bg-card/10 border-dashed shrink-0">
+                <CardContent className="p-4">
+                  <p className="text-[10px] font-bold text-muted-foreground uppercase mb-3">Lounge Library</p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    {realQueue.slice(5, 9).map((track) => (
+                      <div key={`lib-${track.id}`} onClick={() => playTrack(track.uri)} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 cursor-pointer border border-transparent hover:border-border/50 transition-all group">
+                        <div className="h-8 w-8 rounded bg-muted flex items-center justify-center shrink-0">
+                          <Music className="h-3 w-3 text-muted-foreground group-hover:text-primary" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[11px] font-medium truncate">{track.title}</p>
+                          <p className="text-[9px] text-muted-foreground truncate">{track.artist}</p>
+                        </div>
+                        <Plus className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100" />
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+                </CardContent>
+              </Card>
+            )}
+          </div>
         </div>
 
+        {/* Chat Sidebar */}
         {chatOpen && (
-          <div className="w-85 shrink-0 pr-4 py-4 flex flex-col h-full animate-in slide-in-from-right duration-300">
+          <div className="w-80 shrink-0 pr-4 py-4 flex flex-col h-full animate-in slide-in-from-right duration-500">
             <Card className="border-border/50 flex-1 flex flex-col overflow-hidden bg-card/50 backdrop-blur-md shadow-2xl">
               <div className="flex items-center justify-between p-4 border-b border-border/50 bg-muted/20">
                 <div>
@@ -245,15 +228,21 @@ const MusicLounge = () => {
                     <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" /> 3 listeners active
                   </p>
                 </div>
-                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={() => setChatOpen(false)}><X className="h-4 w-4" /></Button>
+                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={() => setChatOpen(false)}>
+                  <X className="h-4 w-4" />
+                </Button>
               </div>
               <ScrollArea className="flex-1 p-4">
-                <div className="space-y-1">{mockMessages.map((m, i) => (<ChatBubble key={i} {...m} />))}</div>
+                <div className="space-y-1">
+                  {mockMessages.map((m, i) => (
+                    <ChatBubble key={i} {...m} />
+                  ))}
+                </div>
               </ScrollArea>
               <div className="p-4 border-t border-border/50 bg-muted/10">
                 <div className="flex gap-2">
-                  <Input placeholder="Drop a vibe..." className="bg-background/50 border-border focus-visible:ring-primary" />
-                  <Button size="sm" className="shrink-0">Send</Button>
+                  <Input placeholder="Drop a vibe..." className="bg-background/50 border-border focus-visible:ring-primary h-9 text-xs" />
+                  <Button size="sm" className="shrink-0 h-9 px-4 text-xs">Send</Button>
                 </div>
               </div>
             </Card>
