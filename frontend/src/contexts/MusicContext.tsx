@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef } from 'r
 
 interface MusicContextType {
   player: any;
+  token: string | null; // Added to interface
   deviceId: string;
   currentTrack: any;
   playing: boolean;
@@ -15,19 +16,25 @@ const MusicContext = createContext<MusicContextType | undefined>(undefined);
 
 export const MusicProvider = ({ children }: { children: React.ReactNode }) => {
   const [player, setPlayer] = useState<any>(null);
+  const [token, setToken] = useState<string | null>(null); // NEW: Token State
   const [deviceId, setDeviceId] = useState("");
   const [currentTrack, setCurrentTrack] = useState<any>(null);
   const [playing, setPlaying] = useState(false);
   const [position, setPosition] = useState(0);
   const [duration, setDuration] = useState(0);
   
-  // Use a ref to prevent double-initialization in React Strict Mode
   const isInitialized = useRef(false);
 
+  // 1. Initial Token Load
   useEffect(() => {
-    const token = localStorage.getItem("spotify_access_token");
-    
-    // Only initialize if we have a token and haven't started yet
+    const savedToken = localStorage.getItem("spotify_access_token");
+    if (savedToken) {
+      setToken(savedToken);
+    }
+  }, []);
+
+  // 2. SDK Initialization (Triggered when token is available)
+  useEffect(() => {
     if (!token || isInitialized.current) return;
 
     const setupPlayer = () => {
@@ -37,7 +44,6 @@ export const MusicProvider = ({ children }: { children: React.ReactNode }) => {
         volume: 0.5
       });
 
-      // SYNC LOGIC: Helper to update all states at once
       const syncState = (state: any) => {
         if (!state) return;
         setCurrentTrack(state.track_window.current_track);
@@ -49,8 +55,6 @@ export const MusicProvider = ({ children }: { children: React.ReactNode }) => {
       p.addListener('ready', ({ device_id }: any) => {
         console.log('✅ Spotify Player Ready with Device ID:', device_id);
         setDeviceId(device_id);
-        
-        // Immediately fetch the current state in case music is already playing
         p.getCurrentState().then((state: any) => {
           if (state) syncState(state);
         });
@@ -68,15 +72,14 @@ export const MusicProvider = ({ children }: { children: React.ReactNode }) => {
       isInitialized.current = true;
     };
 
-    // Load SDK if not present, otherwise setup
     if (!window.Spotify) {
       window.onSpotifyWebPlaybackSDKReady = setupPlayer;
     } else {
       setupPlayer();
     }
-  }, []);
+  }, [token]); // Added token dependency
 
-  // --- HEARTBEAT (The Progress Bar Timer) ---
+  // 3. Heartbeat Logic
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (playing) {
@@ -93,37 +96,36 @@ export const MusicProvider = ({ children }: { children: React.ReactNode }) => {
     return () => clearInterval(interval);
   }, [playing, duration]);
 
- 
-  
-  const playTrack = async (trackUri) => {
-      const token = localStorage.getItem("spotify_access_token");
-  if (!deviceId) {
-    console.error("Playback failed: Player is not ready (Missing Device ID)");
-    // Optional: Add a toast notification here to tell the user "System initializing..."
-    return;
-  }
+  // 4. Play Function
+  const playTrack = async (trackUri: string) => {
+    if (!deviceId) {
+      console.error("Playback failed: Missing Device ID");
+      return;
+    }
 
-  if (!token) {
-    console.error("Playback failed: No Access Token");
-    return;
-  }
+    if (!token) {
+      console.error("Playback failed: No Access Token");
+      return;
+    }
 
-  try {
-    await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`, {
-      method: "PUT",
-      body: JSON.stringify({ uris: [trackUri] }),
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-    });
-  } catch (error) {
-    console.error("Error playing track:", error);
-  }
-};
+    try {
+      await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`, {
+        method: "PUT",
+        body: JSON.stringify({ uris: [trackUri] }),
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+    } catch (error) {
+      console.error("Error playing track:", error);
+    }
+  };
+
   return (
     <MusicContext.Provider value={{ 
       player, 
+      token, // Now exists in scope
       deviceId, 
       currentTrack, 
       playing, 

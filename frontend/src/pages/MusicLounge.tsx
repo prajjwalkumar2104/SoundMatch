@@ -1,7 +1,7 @@
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Play, Pause, SkipForward, SkipBack, Volume2, MessageCircle, X, Music, Plus, Loader2 } from "lucide-react";
+import { Play, Pause, SkipForward, SkipBack, Volume2, MessageCircle, X, Music, Plus, Loader2, ListMusic } from "lucide-react";
 import { ChatBubble } from "@/components/ChatBubble";
 import { AudioVisualizer } from "@/components/AudioVisualizer";
 import { useState, useEffect } from "react";
@@ -21,6 +21,14 @@ interface Track {
   image: string;
 }
 
+interface Playlist {
+  id: string;
+  name: string;
+  uri: string;
+  images: { url: string }[];
+  tracks: { total: number };
+}
+
 const mockMessages = [
   { sender: "Aria", message: "This song is amazing! 🔥", isSelf: false, time: "2:30 PM" },
   { sender: "You", message: "Right? The drop at 2:15 is insane", isSelf: true, time: "2:31 PM" },
@@ -31,27 +39,54 @@ const MusicLounge = () => {
   const { playing, currentTrack, position, duration, player, playTrack, setPosition } = useMusic();
   const [chatOpen, setChatOpen] = useState(true);
   const [realQueue, setRealQueue] = useState<Track[]>([]);
+  const [playlists, setPlaylists] = useState<Playlist[]>([]); // New state for playlists
   const [isLoading, setIsLoading] = useState(true);
 
   // --- Fetch Real Spotify Data ---
   useEffect(() => {
-    const fetchMyTopTracks = async () => {
+    const fetchSpotifyData = async () => {
+      
       const token = localStorage.getItem("spotify_access_token");
+      const playlistRes = await fetch('http://127.0.0.1:5000/api/spotify/playlists', {
+  headers: { 'Authorization': `Bearer ${token}` }
+});
+
+if (playlistRes.ok) {
+  const text = await playlistRes.text(); // Get as text first
+  const playlistData = text ? JSON.parse(text) : []; // Only parse if text isn't empty
+  setPlaylists(playlistData);
+}
       if (!token) return;
+      
       try {
-        const response = await fetch('http://127.0.0.1:5000/api/spotify/top-tracks', {
+        // Fetch Top Tracks
+        const tracksRes = await fetch('http://127.0.0.1:5000/api/spotify/top-tracks', {
           headers: { 'Authorization': `Bearer ${token}` }
         });
-        if (!response.ok) throw new Error("Failed to fetch tracks");
-        const data = await response.json();
-        setRealQueue(data);
+        
+        // Fetch Playlists
+        const playlistRes = await fetch('http://127.0.0.1:5000/api/spotify/playlists', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (tracksRes.ok) {
+          const trackData = await tracksRes.json();
+          setRealQueue(trackData);
+        }
+        
+        if (playlistRes.ok) {
+          const playlistData = await playlistRes.json();
+          setPlaylists(playlistData);
+        }
+
       } catch (err) {
-        console.error("Queue Fetch Error:", err);
+        console.error("Data Fetch Error:", err);
       } finally {
         setIsLoading(false);
       }
     };
-    fetchMyTopTracks();
+    
+    fetchSpotifyData();
   }, []);
 
   const formatTime = (ms: number) => {
@@ -64,7 +99,7 @@ const MusicLounge = () => {
     <AppLayout>
       <div className="max-w-6xl mx-auto h-[calc(100vh-5rem)] flex gap-0 overflow-hidden relative">
         
-        {/* Main Player Area - Added overflow-y-auto to fix the scroll issue */}
+        {/* Main Player Area */}
         <div className="flex-1 min-w-0 flex flex-col p-4 overflow-y-auto custom-scrollbar">
           
           <div className="flex items-center justify-between mb-6">
@@ -144,7 +179,7 @@ const MusicLounge = () => {
             </CardContent>
           </Card>
 
-          {/* Real Queue List - Changed flex-1 to min-h-[400px] to ensure it shows up */}
+          {/* Real Queue List */}
           <div className="space-y-4 mb-8">
             <Card className="border-border/50 bg-card/30 flex flex-col overflow-hidden min-h-[400px]">
               <div className="p-4 border-b border-border/50 bg-muted/20 flex justify-between items-center">
@@ -192,28 +227,39 @@ const MusicLounge = () => {
               </ScrollArea>
             </Card>
 
-            {/* Library / Suggested */}
-            {!isLoading && realQueue.length > 0 && (
-               <Card className="border-border/50 bg-card/10 border-dashed shrink-0">
-                <CardContent className="p-4">
-                  <p className="text-[10px] font-bold text-muted-foreground uppercase mb-3">Lounge Library</p>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                    {realQueue.slice(5, 9).map((track) => (
-                      <div key={`lib-${track.id}`} onClick={() => playTrack(track.uri)} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 cursor-pointer border border-transparent hover:border-border/50 transition-all group">
-                        <div className="h-8 w-8 rounded bg-muted flex items-center justify-center shrink-0">
-                          <Music className="h-3 w-3 text-muted-foreground group-hover:text-primary" />
+            {/* --- PLAYLISTS SECTION (Lounge Library) --- */}
+            <Card className="border-border/50 bg-card/20 backdrop-blur-md overflow-hidden">
+              <div className="p-4 border-b border-border/50 bg-muted/20 flex items-center gap-2">
+                <ListMusic className="h-4 w-4 text-primary" />
+                <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Lounge Library · Playlists</p>
+              </div>
+              <CardContent className="p-4">
+                {isLoading ? (
+                  <div className="flex justify-center p-4"><Loader2 className="h-4 w-4 animate-spin" /></div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {playlists.map((playlist) => (
+                      <div 
+                        key={playlist.id} 
+                        onClick={() => playTrack(playlist.uri)}
+                        className="flex items-center gap-3 p-2 rounded-xl hover:bg-primary/5 cursor-pointer border border-transparent hover:border-primary/20 transition-all group"
+                      >
+                        <div className="h-12 w-12 rounded-lg overflow-hidden shrink-0 relative">
+                          <img src={playlist.images[0]?.url} alt={playlist.name} className="h-full w-full object-cover" />
+                          <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Play className="h-4 w-4 text-white fill-white" />
+                          </div>
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-[11px] font-medium truncate">{track.title}</p>
-                          <p className="text-[9px] text-muted-foreground truncate">{track.artist}</p>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-semibold truncate group-hover:text-primary transition-colors">{playlist.name}</p>
+                          <p className="text-[10px] text-muted-foreground">{playlist.tracks?.total || 0} Tracks</p>
                         </div>
-                        <Plus className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100" />
                       </div>
                     ))}
                   </div>
-                </CardContent>
-              </Card>
-            )}
+                )}
+              </CardContent>
+            </Card>
           </div>
         </div>
 

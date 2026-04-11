@@ -32,13 +32,20 @@ const upload = multer({ storage: multer.memoryStorage() });
 const getSpotifyUrl = (req, res) => {
 
     // index.js (Backend)
-    const scope = 'user-read-private user-read-email user-top-read streaming user-modify-playback-state user-read-playback-state';
-    
+   const scopes = [
+  'user-read-playback-state',
+  'user-modify-playback-state',
+  'streaming',
+  'user-read-currently-playing',
+  'user-top-read',
+  'playlist-read-private',      // ADD THIS
+  'playlist-read-collaborative' // ADD THIS
+];
     const queryParams = querystring.stringify({
         client_id: process.env.SPOTIFY_CLIENT_ID,
         response_type: 'code',
         redirect_uri: process.env.SPOTIFY_REDIRECT_URI,
-        scope: scope,
+        scope: scopes.join(' '),
         show_dialog: true 
     });
 
@@ -157,7 +164,33 @@ app.post('/api/auth/spotify/disconnect', async (req, res) => {
 // ==========================================
 
 // --- Spotify Routes ---
-app.get('/api/auth/spotify/url', getSpotifyUrl);
+// server/routes/auth.js (or wherever your auth logic lives)
+app.get('/api/auth/spotify/url', (req, res) => {
+    try {
+        const client_id = process.env.SPOTIFY_CLIENT_ID;
+        const redirect_uri = process.env.SPOTIFY_REDIRECT_URI;
+
+        const scopes = [
+            'user-read-playback-state',
+            'user-modify-playback-state',
+            'streaming',
+            'user-read-currently-playing',
+            'user-top-read',
+            'playlist-read-private',
+            'playlist-read-collaborative',
+            'user-library-read',
+            'user-read-email',
+            'user-read-private'
+        ];
+
+        const spotifyUrl = `https://accounts.spotify.com/authorize?client_id=${client_id}&response_type=code&redirect_uri=${encodeURIComponent(redirect_uri)}&scope=${encodeURIComponent(scopes.join(' '))}&show_dialog=true`;
+
+        res.json({ url: spotifyUrl });
+    } catch (error) {
+        console.error("🔥 Auth URL Generation Error:", error);
+        res.status(500).json({ error: "Internal Server Error", details: error.message });
+    }
+});
 app.post('/api/auth/spotify/callback', spotifyCallback);
 
 // --- Existing Routes ---
@@ -235,7 +268,20 @@ app.get('/api/user/profile', async (req, res) => {
     res.status(500).json({ error: "Server error fetching profile" });
   }
 });
-
+// Add to your server.js
+// server.js - Update your route to this:
+app.get('/api/spotify/playlists', async (req, res) => {
+  const token = req.headers.authorization;
+  try {
+    const response = await axios.get('https://api.spotify.com/v1/me/playlists', {
+      headers: { Authorization: token }
+    });
+    res.json(response.data.items || []);
+  } catch (error) {
+    console.error("Playlist Error:", error.response?.data || error.message);
+    res.status(error.response?.status || 500).json([]);
+  }
+});
 app.get('/sounds', async (req, res) => {
     try {
         const { data, error } = await supabase
@@ -331,6 +377,22 @@ app.get('/api/my-matches/:id', async (req, res) => {
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
+});
+// Add to your server.js
+app.get('/api/spotify/stats', async (req, res) => {
+  const token = req.headers.authorization;
+  try {
+    const topTracks = await axios.get('https://api.spotify.com/v1/me/top/tracks', {
+      headers: { Authorization: token }
+    });
+    const recent = await axios.get('https://api.spotify.com/v1/me/player/recently-played', {
+      headers: { Authorization: token }
+    });
+
+    res.json({ topTracks: topTracks.data, recent: recent.data });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch stats" });
+  }
 });
 
 app.get('/api/match-count/:id', async (req, res) => {
