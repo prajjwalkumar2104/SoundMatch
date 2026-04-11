@@ -93,28 +93,34 @@ export const MusicProvider = ({ children }: { children: React.ReactNode }) => {
     return () => clearInterval(interval);
   }, [playing, duration]);
 
-  const playTrack = async (uri: string) => {
-    const token = localStorage.getItem("spotify_access_token");
-    if (!deviceId || !token) {
-      console.error("Cannot play: No Device ID or Token");
-      return;
-    }
+ 
+  
+  const playTrack = async (trackUri) => {
+      const token = localStorage.getItem("spotify_access_token");
+  if (!deviceId) {
+    console.error("Playback failed: Player is not ready (Missing Device ID)");
+    // Optional: Add a toast notification here to tell the user "System initializing..."
+    return;
+  }
 
-    try {
-      // Use 127.0.0.1 to match your browser's current origin
-      await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`, {
-        method: 'PUT',
-        body: JSON.stringify({ uris: [uri] }),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-      });
-    } catch (err) {
-      console.error("Playback fetch error:", err);
-    }
-  };
+  if (!token) {
+    console.error("Playback failed: No Access Token");
+    return;
+  }
 
+  try {
+    await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`, {
+      method: "PUT",
+      body: JSON.stringify({ uris: [trackUri] }),
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+    });
+  } catch (error) {
+    console.error("Error playing track:", error);
+  }
+};
   return (
     <MusicContext.Provider value={{ 
       player, 
