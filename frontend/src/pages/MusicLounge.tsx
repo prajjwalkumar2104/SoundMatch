@@ -27,6 +27,7 @@ interface Playlist {
   uri: string;
   images: { url: string }[];
   tracks: { total: number };
+  total_tracks?: number;
 }
 
 const mockMessages = [
@@ -53,7 +54,8 @@ const MusicLounge = () => {
 
 if (playlistRes.ok) {
   const text = await playlistRes.text(); // Get as text first
-  const playlistData = text ? JSON.parse(text) : []; // Only parse if text isn't empty
+  const playlistData = text ? JSON.parse(text) : [];
+  console.log("Frontend Received:", playlistData[0]); // Only parse if text isn't empty
   setPlaylists(playlistData);
 }
       if (!token) return;
@@ -252,7 +254,9 @@ if (playlistRes.ok) {
                         </div>
                         <div className="min-w-0 flex-1">
                           <p className="text-xs font-semibold truncate group-hover:text-primary transition-colors">{playlist.name}</p>
-                          <p className="text-[10px] text-muted-foreground">{playlist.tracks?.total || 0} Tracks</p>
+         <p className="text-[10px] text-muted-foreground">
+  {playlist.total_tracks} Tracks
+</p>
                         </div>
                       </div>
                     ))}

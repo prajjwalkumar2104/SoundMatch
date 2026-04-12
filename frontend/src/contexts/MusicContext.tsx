@@ -97,30 +97,29 @@ export const MusicProvider = ({ children }: { children: React.ReactNode }) => {
   }, [playing, duration]);
 
   // 4. Play Function
-  const playTrack = async (trackUri: string) => {
-    if (!deviceId) {
-      console.error("Playback failed: Missing Device ID");
-      return;
-    }
+  const playTrack = async (uri: string) => {
+  if (!deviceId || !token) return;
 
-    if (!token) {
-      console.error("Playback failed: No Access Token");
-      return;
-    }
+  // Check if the URI is a playlist or an individual track
+  const isContext = uri.includes('playlist') || uri.includes('album') || uri.includes('artist');
+  
+  const body = isContext 
+    ? JSON.stringify({ context_uri: uri }) // For Playlists/Albums
+    : JSON.stringify({ uris: [uri] });      // For single Tracks
 
-    try {
-      await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`, {
-        method: "PUT",
-        body: JSON.stringify({ uris: [trackUri] }),
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-      });
-    } catch (error) {
-      console.error("Error playing track:", error);
-    }
-  };
+  try {
+    await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`, {
+      method: "PUT",
+      body: body,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+    });
+  } catch (error) {
+    console.error("Playback Error:", error);
+  }
+};
 
   return (
     <MusicContext.Provider value={{ 

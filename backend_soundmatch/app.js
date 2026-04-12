@@ -268,20 +268,38 @@ app.get('/api/user/profile', async (req, res) => {
     res.status(500).json({ error: "Server error fetching profile" });
   }
 });
-// Add to your server.js
-// server.js - Update your route to this:
 app.get('/api/spotify/playlists', async (req, res) => {
   const token = req.headers.authorization;
   try {
-    const response = await axios.get('https://api.spotify.com/v1/me/playlists', {
+    const response = await axios.get('https://api.spotify.com/v1/me/playlists?limit=50', {
       headers: { Authorization: token }
     });
-    res.json(response.data.items || []);
+
+    const playlists = response.data.items.map(pl => {
+      // Logic to find the count wherever Spotify hid it
+      let count = 0;
+      if (pl.tracks && typeof pl.tracks.total === 'number') {
+        count = pl.tracks.total;
+      } else if (typeof pl.total === 'number') {
+        count = pl.total;
+      }
+
+      return {
+        id: pl.id,
+        name: pl.name || "Untitled",
+        uri: pl.uri,
+        images: pl.images || [],
+        total_tracks: count // We send the mapped count
+      };
+    });
+
+    res.json(playlists);
   } catch (error) {
-    console.error("Playlist Error:", error.response?.data || error.message);
-    res.status(error.response?.status || 500).json([]);
+    console.error("Playlist API Error:", error.message);
+    res.status(500).json([]);
   }
 });
+
 app.get('/sounds', async (req, res) => {
     try {
         const { data, error } = await supabase
