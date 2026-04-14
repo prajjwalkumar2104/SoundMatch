@@ -105,7 +105,7 @@ const MyProfile = () => {
             )}
             
             <div className="flex flex-wrap justify-center md:justify-start gap-2 mt-4">
-              {user.topGenres.map((g) => (
+              {user.topGenres?.map((g) => (
                 <Badge key={g} variant="secondary" className="px-3 py-1 font-medium tracking-wide">{g}</Badge>
               ))}
             </div>
@@ -138,7 +138,7 @@ const MyProfile = () => {
               <CardContent>
                 <ul className="space-y-2">
                   {user.topArtists.length > 0 ? (
-                    user.topArtists.map((artist, i) => (
+                    user.topArtists?.map((artist, i) => (
                       <li key={artist} className="text-sm font-medium flex items-center gap-3 group">
                         <span className="text-primary/60 font-mono text-xs">{i + 1}.</span> 
                         <span className="group-hover:translate-x-1 transition-transform">{artist}</span>
