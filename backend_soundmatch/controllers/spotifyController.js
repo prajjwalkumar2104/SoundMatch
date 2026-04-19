@@ -59,6 +59,28 @@ exports.spotifyCallback = async (req, res) => {
     }
 };
 
+
+exports.getStats = async (req, res) => {
+    const token = req.headers.authorization;
+    try {
+        // Spotify API endpoints for Top Tracks and Recently Played
+        const topTracks = await axios.get('https://api.spotify.com/v1/me/top/tracks', {
+            headers: { Authorization: token }
+        });
+        const recent = await axios.get('https://api.spotify.com/v1/me/player/recently-played', {
+            headers: { Authorization: token }
+        });
+
+        res.json({ 
+            topTracks: topTracks.data.items || [], 
+            recent: recent.data.items || [] 
+        });
+    } catch (error) {
+        console.error("Stats Error:", error.message);
+        res.status(500).json({ error: "Failed to fetch stats" });
+    }
+};
+
 exports.getTopTracks = async (req, res) => {
     try {
         const authHeader = req.headers.authorization;

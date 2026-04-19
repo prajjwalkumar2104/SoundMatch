@@ -27,6 +27,7 @@ app.get('/api/auth/spotify/url', spotify.getSpotifyUrl);
 app.post('/api/auth/spotify/callback', spotify.spotifyCallback);
 app.get('/api/spotify/top-tracks', spotify.getTopTracks);
 app.get('/api/spotify/playlists', spotify.getPlaylists);
+app.get('/api/spotify/stats', spotify.getStats);
 
 // --- 4. USER & MATCHING ROUTES ---
 // We use the 'user' variable we imported above

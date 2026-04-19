@@ -8,12 +8,22 @@ interface MusicRadarChartProps {
 }
 
 export const MusicRadarChart = ({ userA, userB, labelA = "You", labelB = "Match" }: MusicRadarChartProps) => {
+  // --- 1. THE SAFETY GUARD ---
+  // If userA doesn't exist yet, return null (renders nothing) instead of crashing.
+  if (!userA) {
+    return (
+      <div className="flex items-center justify-center h-[280px] text-muted-foreground text-sm">
+        Loading music metrics...
+      </div>
+    );
+  }
+
   const data = [
-    { trait: "BPM", A: userA.bpm, B: userB?.bpm },
-    { trait: "Dance", A: userA.danceability, B: userB?.danceability },
-    { trait: "Energy", A: userA.energy, B: userB?.energy },
-    { trait: "Acoustic", A: userA.acousticness, B: userB?.acousticness },
-    { trait: "Valence", A: userA.valence, B: userB?.valence },
+    { trait: "BPM", A: userA.bpm || 0, B: userB?.bpm },
+    { trait: "Dance", A: userA.danceability || 0, B: userB?.danceability },
+    { trait: "Energy", A: userA.energy || 0, B: userB?.energy },
+    { trait: "Acoustic", A: userA.acousticness || 0, B: userB?.acousticness },
+    { trait: "Valence", A: userA.valence || 0, B: userB?.valence },
   ];
 
   return (
