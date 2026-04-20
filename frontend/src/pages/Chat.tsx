@@ -4,12 +4,14 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { mockUsers } from "@/data/mockUsers";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { useState } from "react";
+import { useState, useEffect } from "react"; // Added useEffect
 import { Send } from "lucide-react";
 import { VoiceNotePlayer, VoiceNoteRecorder } from "@/components/VoiceNote";
 import { ReactionPicker } from "@/components/ReactionPicker";
+import { useSocket } from "@/contexts/SocketContext"; // Added
 
-const conversations = [
+// We keep your mock data as the initial state
+const initialConversations = [
   {
     user: mockUsers[0],
     messages: [
@@ -30,9 +32,66 @@ const conversations = [
 ];
 
 const Chat = () => {
+  const socket = useSocket();
   const [activeIdx, setActiveIdx] = useState(0);
+  const [inputText, setInputText] = useState("");
+  const [conversations, setConversations] = useState(initialConversations);
   const [messageReactions, setMessageReactions] = useState<Record<string, Record<string, number>>>({});
+
+  // Mock Login Check (Replace with your logic later)
+  const isLoggedIn = true; 
+
   const active = conversations[activeIdx];
+
+  // Logic to handle incoming real-time messages
+  useEffect(() => {
+    if (!socket) return;
+
+    socket.on("receive_private_message", (data) => {
+      setConversations((prev) => {
+        const newConversations = [...prev];
+        // In a real app, you'd find the conversation by senderId
+        // For now, we'll just push it to the active one for testing
+        newConversations[activeIdx].messages.push({
+          sender: data.senderName || "Friend",
+          message: data.content,
+          isSelf: false,
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          reactions: {}
+        });
+        return [...newConversations];
+      });
+    });
+
+    return () => { socket.off("receive_private_message"); };
+  }, [socket, activeIdx]);
+
+  const handleSendMessage = () => {
+    if (!inputText.trim()) return;
+
+    const newMessage = {
+      sender: "You",
+      message: inputText,
+      isSelf: true,
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      reactions: {}
+    };
+
+    // 1. Update UI immediately
+    const updated = [...conversations];
+    updated[activeIdx].messages.push(newMessage);
+    setConversations(updated);
+
+    // 2. Send to Backend
+    if (socket && isLoggedIn) {
+      socket.emit("send_private_message", {
+        recipientId: active.user.id,
+        content: inputText
+      });
+    }
+
+    setInputText("");
+  };
 
   const handleReact = (msgKey: string, emoji: string) => {
     setMessageReactions((prev) => {
@@ -65,9 +124,9 @@ const Chat = () => {
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-foreground truncate">{conv.user.name}</p>
                   <p className="text-xs text-muted-foreground truncate">
-                    {conv.messages[conv.messages.length - 1].isVoiceNote
+                    {conv.messages[conv.messages.length - 1]?.isVoiceNote
                       ? "🎤 Voice note"
-                      : conv.messages[conv.messages.length - 1].message}
+                      : conv.messages[conv.messages.length - 1]?.message}
                   </p>
                 </div>
               </button>
@@ -83,6 +142,7 @@ const Chat = () => {
               </Avatar>
               <p className="font-semibold text-foreground">{active.user.name}</p>
             </div>
+            
             <div className="flex-1 overflow-y-auto p-4">
               {active.messages.map((m, i) => {
                 const key = `${activeIdx}-${i}`;
@@ -107,11 +167,7 @@ const Chat = () => {
                             </p>
                           )}
                           <VoiceNotePlayer duration={m.voiceDuration} />
-                          <p
-                            className={`text-[10px] mt-1 ${
-                              m.isSelf ? "text-primary-foreground/60" : "text-muted-foreground"
-                            }`}
-                          >
+                          <p className={`text-[10px] mt-1 ${m.isSelf ? "text-primary-foreground/60" : "text-muted-foreground"}`}>
                             {m.time}
                           </p>
                         </div>
@@ -129,10 +185,17 @@ const Chat = () => {
                 );
               })}
             </div>
+
             <div className="p-4 border-t border-border/50 flex gap-2 items-center">
               <VoiceNoteRecorder />
-              <Input placeholder="Type a message..." className="bg-muted border-border" />
-              <Button size="icon">
+              <Input 
+                value={inputText}
+                onChange={(e) => setInputText(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
+                placeholder="Type a message..." 
+                className="bg-muted border-border" 
+              />
+              <Button size="icon" onClick={handleSendMessage}>
                 <Send className="h-4 w-4" />
               </Button>
             </div>

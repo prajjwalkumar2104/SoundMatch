@@ -15,6 +15,7 @@ import Matches from "./pages/Matches.tsx";
 import MusicLounge from "./pages/MusicLounge.tsx";
 import Events from "./pages/Events.tsx";
 import Chat from "./pages/Chat.tsx";
+import { SocketProvider } from "./contexts/SocketContext.tsx";
 import GroupLounges from "./pages/GroupLounges.tsx";
 import ActivityFeed from "./pages/ActivityFeed.tsx";
 import Onboarding from "./pages/Onboarding.tsx";
@@ -32,6 +33,7 @@ const App = () => (
         <Toaster />
         <Sonner />
         <MusicProvider>
+          <SocketProvider>
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<Landing />} />
@@ -53,6 +55,7 @@ const App = () => (
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
+        </SocketProvider>
         </MusicProvider>
       </ModeProvider>
     </TooltipProvider>

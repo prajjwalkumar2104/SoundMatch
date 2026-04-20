@@ -1,5 +1,7 @@
 // PUT THIS IN BACKEND/INDEX.JS
 const express = require('express');
+const http = require('http'); // 1. Import HTTP module
+const { Server } = require('socket.io');
 const cors = require('cors');
 const multer = require('multer');
 require('dotenv').config();
@@ -11,7 +13,22 @@ const spotify = require('./controllers/spotifyController');
 const user = require('./controllers/userController');
 
 const app = express();
-const port = process.env.PORT || 5000;
+const server = http.createServer(app);
+
+
+const io = new Server(server, {
+  cors: {
+    origin: "*", // Adjust this to your React app's URL for security later
+    methods: ["GET", "POST"]
+  }
+});
+
+
+const chatSocket = require('./sockets/chatSocket');
+chatSocket(io);
+
+
+
 const upload = multer({ storage: multer.memoryStorage() });
 
 // --- 2. MIDDLEWARE ---
@@ -36,6 +53,9 @@ app.get('/api/auth/spotify/status/:userId', user.getSpotifyStatus);
 app.get('/api/match/:id', user.findMatches);
 app.post('/api/like', user.handleLike);
 
+
+
+const port = process.env.PORT || 5000;
 // --- 5. DISCONNECT LOGIC ---
 app.post('/api/auth/spotify/disconnect', async (req, res) => {
     const { userId } = req.body;
@@ -77,6 +97,7 @@ app.post('/api/auth/spotify/disconnect', async (req, res) => {
 app.get("/", (req, res) => res.send("SoundMatch Server API is running"));
 
 // --- 7. START SERVER ---
-app.listen(port, () => {
+server.listen(port, () => {
     console.log(`🚀 Server running on http://127.0.0.1:${port}`);
+    console.log(`⚡ Real-time Sockets initialized`);
 });
