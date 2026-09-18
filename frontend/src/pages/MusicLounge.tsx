@@ -10,6 +10,7 @@ import { Slider } from "@/components/ui/slider";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { useMusic } from "@/contexts/MusicContext";
+import { useSocket } from "@/contexts/SocketContext";
 
 // --- Data Types ---
 interface Track {
@@ -38,49 +39,88 @@ const mockMessages = [
 
 const MusicLounge = () => {
   const { playing, currentTrack, position, duration, player, playTrack, setPosition } = useMusic();
+  const socket = useSocket();
+  
   const [chatOpen, setChatOpen] = useState(true);
   const [realQueue, setRealQueue] = useState<Track[]>([]);
-  const [playlists, setPlaylists] = useState<Playlist[]>([]); // New state for playlists
+  const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  // --- Live Chat State ---
+  const [inputText, setInputText] = useState("");
+  const [loungeMessages, setLoungeMessages] = useState<any[]>(mockMessages);
+  const loungeId = "1"; 
+ const [currentUserId] = useState(() => Math.floor(Math.random() * 1000000));
+ const [userName] = useState(() => `Viber_${Math.floor(Math.random() * 1000)}`);
+  // --- Socket Connection for Lounge ---
+  useEffect(() => {
+    if (!socket) return;
+
+    socket.emit("join_lounge", loungeId);
+
+    const handleNewMessage = (newMessage: any) => {
+      const isSelf = newMessage.senderId === currentUserId;
+      setLoungeMessages((prev) => [...prev, { ...newMessage, isSelf }]);
+    };
+
+    socket.on("receive_lounge_message", handleNewMessage);
+
+    return () => {
+      socket.off("receive_lounge_message", handleNewMessage);
+    };
+  }, [socket, loungeId, currentUserId]);
+
+  const handleSendMessage = () => {
+  if (!inputText.trim() || !socket) return;
+
+  // Optimistic UI update
+  const tempMessage = {
+    sender: userName, // <-- Use dynamic name
+    message: inputText,
+    isSelf: true,
+    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  };
+  
+  setLoungeMessages((prev) => [...prev, tempMessage]);
+
+  // Broadcast to backend
+  socket.emit("send_lounge_message", {
+    loungeId,
+    senderId: currentUserId, // Uses the randomized ID
+    senderName: userName,    // <-- Use dynamic name
+    content: inputText
+  });
+
+  setInputText("");
+};
 
   // --- Fetch Real Spotify Data ---
   useEffect(() => {
     const fetchSpotifyData = async () => {
-      
       const token = localStorage.getItem("spotify_access_token");
+      
       const playlistRes = await fetch('http://127.0.0.1:5000/api/spotify/playlists', {
-  headers: { 'Authorization': `Bearer ${token}` }
-});
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
 
-if (playlistRes.ok) {
-  const text = await playlistRes.text(); // Get as text first
-  const playlistData = text ? JSON.parse(text) : [];
-  console.log("Frontend Received:", playlistData[0]); // Only parse if text isn't empty
-  setPlaylists(playlistData);
-}
+      if (playlistRes.ok) {
+        const text = await playlistRes.text();
+        const playlistData = text ? JSON.parse(text) : [];
+        console.log("Frontend Received:", playlistData[0]); 
+        setPlaylists(playlistData);
+      }
+      
       if (!token) return;
       
       try {
-        // Fetch Top Tracks
         const tracksRes = await fetch('http://127.0.0.1:5000/api/spotify/top-tracks', {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         
-        // Fetch Playlists
-        const playlistRes = await fetch('http://127.0.0.1:5000/api/spotify/playlists', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-
         if (tracksRes.ok) {
           const trackData = await tracksRes.json();
           setRealQueue(trackData);
         }
-        
-        if (playlistRes.ok) {
-          const playlistData = await playlistRes.json();
-          setPlaylists(playlistData);
-        }
-
       } catch (err) {
         console.error("Data Fetch Error:", err);
       } finally {
@@ -254,9 +294,9 @@ if (playlistRes.ok) {
                         </div>
                         <div className="min-w-0 flex-1">
                           <p className="text-xs font-semibold truncate group-hover:text-primary transition-colors">{playlist.name}</p>
-         <p className="text-[10px] text-muted-foreground">
-  {playlist.total_tracks} Tracks
-</p>
+                          <p className="text-[10px] text-muted-foreground">
+                            {playlist.total_tracks} Tracks
+                          </p>
                         </div>
                       </div>
                     ))}
@@ -282,17 +322,25 @@ if (playlistRes.ok) {
                   <X className="h-4 w-4" />
                 </Button>
               </div>
+              
               <ScrollArea className="flex-1 p-4">
                 <div className="space-y-1">
-                  {mockMessages.map((m, i) => (
+                  {loungeMessages.map((m, i) => (
                     <ChatBubble key={i} {...m} />
                   ))}
                 </div>
               </ScrollArea>
+              
               <div className="p-4 border-t border-border/50 bg-muted/10">
                 <div className="flex gap-2">
-                  <Input placeholder="Drop a vibe..." className="bg-background/50 border-border focus-visible:ring-primary h-9 text-xs" />
-                  <Button size="sm" className="shrink-0 h-9 px-4 text-xs">Send</Button>
+                  <Input 
+                    value={inputText}
+                    onChange={(e) => setInputText(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
+                    placeholder="Drop a vibe..." 
+                    className="bg-background/50 border-border focus-visible:ring-primary h-9 text-xs" 
+                  />
+                  <Button size="sm" onClick={handleSendMessage} className="shrink-0 h-9 px-4 text-xs">Send</Button>
                 </div>
               </div>
             </Card>
