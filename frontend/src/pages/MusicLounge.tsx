@@ -59,16 +59,23 @@ const MusicLounge = () => {
     socket.emit("join_lounge", loungeId);
 
     const handleNewMessage = (newMessage: any) => {
-      const isSelf = newMessage.senderId === currentUserId;
-      setLoungeMessages((prev) => [...prev, { ...newMessage, isSelf }]);
-    };
+    const isSelf = newMessage.senderId === currentUserId;
+    setLoungeMessages((prev) => [...prev, { ...newMessage, isSelf }]);
+  };
+
+  const handleTrackChanged = (data: any) => {
+    // When someone else changes the song, play it automatically
+    playTrack(data.uri); 
+  };
 
     socket.on("receive_lounge_message", handleNewMessage);
+    socket.on("track_changed", handleTrackChanged);
 
     return () => {
       socket.off("receive_lounge_message", handleNewMessage);
+      socket.off("track_changed", handleTrackChanged);
     };
-  }, [socket, loungeId, currentUserId]);
+  }, [socket, loungeId]);
 
   const handleSendMessage = () => {
   if (!inputText.trim() || !socket) return;
@@ -136,6 +143,20 @@ const MusicLounge = () => {
     const sec = Math.floor((ms % 60000) / 1000);
     return `${min}:${sec < 10 ? '0' : ''}${sec}`;
   };
+
+  const handlePlayAndSync = (item: any) => {
+  // 1. Play locally
+  playTrack(item.uri); 
+  
+  // 2. Broadcast to the room
+  if (socket) {
+    socket.emit("sync_track", {
+      loungeId,
+      trackUri: item.uri,
+      trackName: item.title || item.name 
+    });
+  }
+};
 
   return (
     <AppLayout>
@@ -240,7 +261,7 @@ const MusicLounge = () => {
                     {realQueue.map((track, i) => (
                       <div 
                         key={track.id} 
-                        onClick={() => playTrack(track.uri)} 
+                        onClick={() => handlePlayAndSync(track)} 
                         className={`flex items-center gap-4 p-3 my-1 rounded-xl group cursor-pointer transition-all border border-transparent ${
                           currentTrack?.uri === track.uri 
                           ? "bg-primary/10 border-primary/20 shadow-sm" 
@@ -283,7 +304,7 @@ const MusicLounge = () => {
                     {playlists.map((playlist) => (
                       <div 
                         key={playlist.id} 
-                        onClick={() => playTrack(playlist.uri)}
+                        onClick={() => handlePlayAndSync(playlist)}
                         className="flex items-center gap-3 p-2 rounded-xl hover:bg-primary/5 cursor-pointer border border-transparent hover:border-primary/20 transition-all group"
                       >
                         <div className="h-12 w-12 rounded-lg overflow-hidden shrink-0 relative">

@@ -34,5 +34,13 @@ module.exports = (io) => {
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       });
     });
+    socket.on('sync_track', (data) => {
+      const { loungeId, trackUri, trackName } = data;
+      // Broadcast to everyone ELSE in that specific lounge
+      socket.to(`lounge_${loungeId}`).emit('track_changed', {
+        uri: trackUri,
+        name: trackName
+      });
+    });
   });
 };
