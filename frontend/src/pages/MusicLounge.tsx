@@ -50,8 +50,8 @@ const MusicLounge = () => {
   const [inputText, setInputText] = useState("");
   const [loungeMessages, setLoungeMessages] = useState<any[]>(mockMessages);
   const loungeId = "1"; 
- const [currentUserId] = useState(() => Math.floor(Math.random() * 1000000));
- const [userName] = useState(() => `Viber_${Math.floor(Math.random() * 1000)}`);
+  const [currentUserId] = useState(() => Math.floor(Math.random() * 1000000));
+  const [userName] = useState(() => `Viber_${Math.floor(Math.random() * 1000)}`);
   // --- Socket Connection for Lounge ---
   useEffect(() => {
     if (!socket) return;
