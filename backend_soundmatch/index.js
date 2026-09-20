@@ -51,6 +51,8 @@ app.get('/api/spotify/stats', spotify.getStats);
 app.get('/api/user/profile', user.getProfile);
 app.get('/api/auth/spotify/status/:userId', user.getSpotifyStatus);
 app.get('/api/match/:id', user.findMatches);
+// Add this below your existing user routes
+app.get('/api/discover/:userId', user.getDiscoverFeed);
 app.post('/api/like', user.handleLike);
 
 

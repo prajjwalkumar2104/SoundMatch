@@ -1,10 +1,9 @@
 import { Link } from "react-router-dom";
-import { MockUser } from "@/data/mockUsers";
 import { CompatibilityBadge } from "./CompatibilityBadge";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 
-export const ProfileCard = ({ user }: { user: MockUser }) => {
+export const ProfileCard = ({ user }: { user: any }) => {
   const accentHsl = user.profileColor || "207 68% 53%";
 
   return (
@@ -28,10 +27,11 @@ export const ProfileCard = ({ user }: { user: MockUser }) => {
                   <h3 className="font-semibold text-foreground group-hover:text-primary transition-colors">{user.name}, {user.age}</h3>
                   <p className="text-xs text-muted-foreground mt-0.5 truncate">{user.bio}</p>
                 </div>
-                <CompatibilityBadge score={user.compatibilityScore} size="sm" />
+                <CompatibilityBadge score={user.matchPercentage || user.compatibilityScore} size="sm" />
               </div>
               <div className="mt-3 flex flex-wrap gap-1.5">
-                {user.topGenres.map((g) => (
+                {/* SAFE FALLBACK: Ensures .map() never crashes on undefined data */}
+                {(user.topGenres || []).map((g: string) => (
                   <Badge key={g} variant="secondary" className="text-[10px] px-2 py-0.5 bg-muted text-muted-foreground border-0 group-hover:bg-primary/10 group-hover:text-primary transition-colors">
                     {g}
                   </Badge>
