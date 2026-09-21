@@ -7,7 +7,7 @@ import { X, Heart, Music } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 interface SwipeCardProps {
-  user: MockUser;
+  user: any;
   onSwipeLeft: () => void;
   onSwipeRight: () => void;
   isTop: boolean;
