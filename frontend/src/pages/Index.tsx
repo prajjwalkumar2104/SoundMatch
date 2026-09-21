@@ -81,14 +81,38 @@ const Index = () => {
     setSwipeIndex((i) => i + 1);
   }, [swipeIndex, filteredUsers]);
 
-  const handleSwipeRight = useCallback(() => {
-    const user = filteredUsers[swipeIndex];
-    if (user) toast.success(`Matched with ${user.name}! 🎶`);
+  const handleSwipeRight = useCallback(async () => {
+  const user = filteredUsers[swipeIndex];
+  if (!user) return;
 
-    // TODO: Send a POST request to /api/like here to record the right swipe in the database
+  try {
+    const currentUserId = localStorage.getItem("soundmatch_user_id") || "101";
+    
+    // Send the like to the database
+    const res = await fetch("http://127.0.0.1:5000/api/like", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ 
+        from_id: currentUserId, 
+        to_id: user.id 
+      }),
+    });
 
-    setSwipeIndex((i) => i + 1);
-  }, [swipeIndex, filteredUsers]);
+    const data = await res.json();
+
+    // The backend returns "MATCH" if both users liked each other
+    if (data.status === "MATCH") {
+      toast.success(`It's a SoundMatch with ${user.name}! 🎶`);
+    } else {
+      toast(`Liked ${user.name}`);
+    }
+  } catch (err) {
+    console.error("Failed to send like:", err);
+    toast.error("Something went wrong.");
+  }
+
+  setSwipeIndex((i) => i + 1);
+}, [swipeIndex, filteredUsers]);
 
   const resetSwipe = () => setSwipeIndex(0);
 

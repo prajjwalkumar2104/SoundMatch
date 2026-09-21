@@ -100,7 +100,7 @@ export const SwipeCard = ({ user, onSwipeLeft, onSwipeRight, isTop }: SwipeCardP
             </div>
           )}
           <div className="absolute top-4 right-4">
-            <CompatibilityBadge score={user.compatibilityScore} size="sm" />
+            <CompatibilityBadge score={user.matchPercentage || user.compatibilityScore || 0} size="sm" />
           </div>
           <div className={`absolute top-4 left-4 px-2.5 py-1 rounded-full text-xs font-medium capitalize ${moodColors[user.mood]}`}>
             {user.mood}
@@ -120,7 +120,7 @@ export const SwipeCard = ({ user, onSwipeLeft, onSwipeRight, isTop }: SwipeCardP
           </div>
           <p className="text-sm text-muted-foreground mb-3">{user.bio}</p>
           <div className="flex flex-wrap gap-1.5 mb-4">
-            {user.topGenres.map((g) => (
+            {(user.topGenres || []).map((g) => (
               <Badge key={g} variant="secondary" className="text-[10px] px-2 py-0.5 bg-muted text-muted-foreground border-0">
                 {g}
               </Badge>
@@ -128,7 +128,7 @@ export const SwipeCard = ({ user, onSwipeLeft, onSwipeRight, isTop }: SwipeCardP
           </div>
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Music className="h-3 w-3" />
-            <span>{user.topArtists.slice(0, 2).join(", ")}</span>
+            <span>{(user.topArtists || []).slice(0, 2).join(", ")}</span>
           </div>
         </div>
 
