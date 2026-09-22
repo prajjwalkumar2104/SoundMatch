@@ -18,6 +18,13 @@ exports.getProfile = async (req, res) => {
             topGenres: data.favorite_genre ? [data.favorite_genre] : [], // Empty array fallback
             topArtists: data.top_artists || [], // Empty array fallback
             spotify_connected: data.spotify_connected || false,
+            musicDna: {
+        bpm: data.bpm || 120,
+        danceability: 75,
+        energy: 85,
+        acousticness: 30,
+        valence: 65
+    }
         });
     } catch (err) {
         res.status(500).json({ error: "Server error" });
