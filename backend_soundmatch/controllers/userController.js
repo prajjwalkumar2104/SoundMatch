@@ -15,7 +15,7 @@ exports.getProfile = async (req, res) => {
             name: data.username || "New User",
             bio: data.bio || "No bio set yet",
             avatar: data.avatar_url || "https://api.dicebear.com/7.x/avataaars/svg?seed=Felix",
-            topGenres: data.favorite_genre ? [data.favorite_genre] : [], // Empty array fallback
+            topGenres: data.favorite_genre ? [data.favorite_genre, "Pop", "Acoustic", "Vibes"] : ["Acoustic", "Pop"],
             topArtists: data.top_artists || [], // Empty array fallback
             spotify_connected: data.spotify_connected || false,
             musicDna: {
