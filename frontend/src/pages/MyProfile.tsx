@@ -11,22 +11,19 @@ import { Textarea } from "@/components/ui/textarea";
 
 import { currentUser as mockUser } from "@/data/mockUsers"; 
 import { useEffect, useState } from "react";
-import api from "@/lib/api"; 
 
-
-// 1. Define the interface so TypeScript doesn't throw errors
 interface UserProfile {
   name: string;
   bio: string;
   avatar: string;
   topGenres: string[];
   topArtists: string[];
+  topSongs?: any[]; 
   musicDna: any;
-  spotify_connected?: boolean; // Matches your Supabase column
+  spotify_connected?: boolean;
 }
 
 const MyProfile = () => {
-  // 2. State initialized with Mock Data
   const [user, setUser] = useState<UserProfile>(mockUser as UserProfile);
   const [bio, setBio] = useState(user.bio);
   const [editing, setEditing] = useState(false);
@@ -34,26 +31,43 @@ const MyProfile = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   useEffect(() => {
-  const fetchRealProfile = async () => {
-    try {
-      // Get the ID we manually set (which is "1")
-      const userId = localStorage.getItem('userId') || "1"; 
-      
-      // Pass the userId as a query parameter so the backend knows who to fetch
-      const response = await api.get(`/user/profile?userId=${userId}`);
-      
-      if (response.data) {
-        setUser(response.data); // This overwrites mock data with Supabase data
-        setIsLoggedIn(true);    // Hides the "Guest" banner
-      }
-    } catch (err) {
-      console.warn("API check failed, staying on mock data.");
-      setIsLoggedIn(false);
-    }
-  };
+    const fetchRealProfile = async () => {
+      try {
+        const userId = localStorage.getItem('soundmatch_user_id') || "101"; 
+        const token = localStorage.getItem("spotify_access_token");
+        
+        // 1. Fetch DB Profile
+        const response = await fetch(`http://127.0.0.1:5000/api/user/profile?userId=${userId}`);
+        if (!response.ok) throw new Error("Failed to fetch profile");
+        const profileData = await response.json();
 
-  fetchRealProfile();
-}, []);
+        // 2. Fetch Real Spotify Top Tracks
+        let realTopTracks = [];
+        if (token) {
+          const tracksRes = await fetch("http://127.0.0.1:5000/api/spotify/top-tracks", {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (tracksRes.ok) {
+            realTopTracks = await tracksRes.json();
+          }
+        }
+
+        // 3. Combine them into state
+        setUser({
+          ...profileData,
+          topSongs: realTopTracks.slice(0, 5), // Take the top 5 real songs
+        });
+        
+        setBio(profileData.bio || "No bio set yet");
+        setIsLoggedIn(true);
+      } catch (err) {
+        console.warn("API check failed, staying on mock data.", err);
+        setIsLoggedIn(false);
+      }
+    };
+
+    fetchRealProfile();
+  }, []);
 
   const handleConnectSpotify = async () => {
     try {
@@ -65,7 +79,6 @@ const MyProfile = () => {
   };
 
   const handleSaveBio = () => {
-    // Optional: Add api.patch('/user/profile', { bio }) here
     setEditing(false);
   };
 
@@ -105,7 +118,8 @@ const MyProfile = () => {
             )}
             
             <div className="flex flex-wrap justify-center md:justify-start gap-2 mt-4">
-              {user.topGenres?.map((g) => (
+              {/* Safe Mapping for Genres */}
+              {(user.topGenres || []).map((g) => (
                 <Badge key={g} variant="secondary" className="px-3 py-1 font-medium tracking-wide">{g}</Badge>
               ))}
             </div>
@@ -121,14 +135,32 @@ const MyProfile = () => {
 
         {/* Music Stats Grid */}
         <div className="grid gap-6 md:grid-cols-2">
-          <Card className="border-border/50 hover:border-primary/30 transition-all duration-300">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Music DNA Analysis</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <MusicRadarChart userA={user.musicDna} />
-            </CardContent>
-          </Card>
+          <div className="space-y-6">
+            <Card className="border-border/50 hover:border-primary/30 transition-all duration-300">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Music DNA Analysis</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {/* Safe rendering for radar chart */}
+                {user.musicDna ? (
+                   <MusicRadarChart userA={user.musicDna} />
+                ) : (
+                  <div className="flex items-center justify-center h-[280px] text-muted-foreground text-sm">
+                    Loading music metrics...
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card className="border-border/50">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Genre Heatmap</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <GenreHeatmap />
+              </CardContent>
+            </Card>
+          </div>
 
           <div className="space-y-6">
             <Card className="border-border/50 hover:border-primary/30 transition-all">
@@ -137,8 +169,9 @@ const MyProfile = () => {
               </CardHeader>
               <CardContent>
                 <ul className="space-y-2">
-                  {user.topArtists.length > 0 ? (
-                    user.topArtists?.map((artist, i) => (
+                  {/* Safe Mapping for Artists */}
+                  {(user.topArtists || []).length > 0 ? (
+                    user.topArtists.map((artist, i) => (
                       <li key={artist} className="text-sm font-medium flex items-center gap-3 group">
                         <span className="text-primary/60 font-mono text-xs">{i + 1}.</span> 
                         <span className="group-hover:translate-x-1 transition-transform">{artist}</span>
@@ -151,12 +184,29 @@ const MyProfile = () => {
               </CardContent>
             </Card>
 
-            <Card className="border-border/50">
+            <Card className="border-border/50 hover:border-primary/30 transition-all">
               <CardHeader className="pb-2">
-                <CardTitle className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Genre Heatmap</CardTitle>
+                <CardTitle className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Top Tracks</CardTitle>
               </CardHeader>
               <CardContent>
-                <GenreHeatmap />
+                <ul className="space-y-3">
+                  {/* Safe Mapping for Top Tracks */}
+                  {(user.topSongs || []).length > 0 ? (
+                    user.topSongs!.map((song: any, i: number) => (
+                      <li key={i} className="flex items-center gap-3">
+                        <div className="h-10 w-10 bg-muted rounded overflow-hidden shrink-0">
+                          {song.image && <img src={song.image} alt={song.title} className="h-full w-full object-cover" />}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium truncate">{song.title}</p>
+                          <p className="text-xs text-muted-foreground truncate">{song.artist}</p>
+                        </div>
+                      </li>
+                    ))
+                  ) : (
+                    <li className="text-sm text-muted-foreground">Connect Spotify to view your top tracks.</li>
+                  )}
+                </ul>
               </CardContent>
             </Card>
           </div>
