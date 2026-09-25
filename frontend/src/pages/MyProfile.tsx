@@ -55,7 +55,7 @@ const MyProfile = () => {
         // 3. Combine them into state
         setUser({
           ...profileData,
-          topSongs: realTopTracks.slice(0, 8), // Take the top 5 real songs
+          topSongs: realTopTracks.slice(0, 10), // Take the top 5 real songs
         });
         
         setBio(profileData.bio || "No bio set yet");
