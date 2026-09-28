@@ -96,6 +96,26 @@ app.post('/api/auth/spotify/disconnect', async (req, res) => {
 //     }
 // });
 
+// Fetch conversation history between two specific users
+app.get('/api/messages/:userId/:friendId', async (req, res) => {
+    const { userId, friendId } = req.params;
+    
+    try {
+        const { data, error } = await supabase
+            .from('messages')
+            .select('*')
+            // This query fetches messages where User A sent to User B, OR User B sent to User A
+            .or(`and(sender_id.eq.${userId},recipient_id.eq.${friendId}),and(sender_id.eq.${friendId},recipient_id.eq.${userId})`)
+            .order('created_at', { ascending: true }); // Oldest first
+
+        if (error) throw error;
+        
+        res.status(200).json(data);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 app.get("/", (req, res) => res.send("SoundMatch Server API is running"));
 
 // --- 7. START SERVER ---
