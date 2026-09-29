@@ -4,13 +4,12 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { mockUsers } from "@/data/mockUsers";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { useState, useEffect } from "react"; // Added useEffect
+import { useState, useEffect } from "react";
 import { Send } from "lucide-react";
 import { VoiceNotePlayer, VoiceNoteRecorder } from "@/components/VoiceNote";
 import { ReactionPicker } from "@/components/ReactionPicker";
-import { useSocket } from "@/contexts/SocketContext"; // Added
+import { useSocket } from "@/contexts/SocketContext"; 
 
-// We keep your mock data as the initial state
 const initialConversations = [
   {
     user: mockUsers[0],
@@ -38,20 +37,54 @@ const Chat = () => {
   const [conversations, setConversations] = useState(initialConversations);
   const [messageReactions, setMessageReactions] = useState<Record<string, Record<string, number>>>({});
 
-  // Mock Login Check (Replace with your logic later)
-  const isLoggedIn = true; 
-
+  const currentUserId = localStorage.getItem("soundmatch_user_id");
+  const isLoggedIn = Boolean(currentUserId);
   const active = conversations[activeIdx];
 
-  // Logic to handle incoming real-time messages
+  // 1. Fetch Chat History when clicking a profile
   useEffect(() => {
-    if (!socket) return;
+    const fetchHistory = async () => {
+      if (!isLoggedIn) return;
+      
+      const friendId = conversations[activeIdx].user.id;
+      
+      try {
+        const res = await fetch(`http://127.0.0.1:5000/api/messages/${currentUserId}/${friendId}`);
+        if (!res.ok) throw new Error("Failed to fetch history");
+        
+        const history = await res.json();
+        
+        // Map Supabase schema to Frontend schema
+        const formattedMessages = history.map((msg: any) => ({
+          sender: msg.sender_id === currentUserId ? "You" : conversations[activeIdx].user.name,
+          message: msg.content,
+          isSelf: msg.sender_id === currentUserId,
+          time: new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          reactions: {}
+        }));
 
-    socket.on("receive_private_message", (data) => {
+        setConversations((prev) => {
+          const updated = [...prev];
+          updated[activeIdx].messages = formattedMessages;
+          return updated;
+        });
+      } catch (err) {
+        console.error("Error fetching chat history:", err);
+      }
+    };
+
+    fetchHistory();
+  }, [activeIdx, isLoggedIn, currentUserId]);
+
+  // 2. Listen for Real-Time Incoming Messages
+  useEffect(() => {
+    if (!socket || !isLoggedIn) return;
+
+    const handleReceive = (data: any) => {
       setConversations((prev) => {
         const newConversations = [...prev];
-        // In a real app, you'd find the conversation by senderId
-        // For now, we'll just push it to the active one for testing
+        // In a fully dynamic app, we'd find the index by data.senderId
+        // Assuming it's for the currently active chat for testing
         newConversations[activeIdx].messages.push({
           sender: data.senderName || "Friend",
           message: data.content,
@@ -61,11 +94,13 @@ const Chat = () => {
         });
         return [...newConversations];
       });
-    });
+    };
 
-    return () => { socket.off("receive_private_message"); };
-  }, [socket, activeIdx]);
+    socket.on("receive_private_message", handleReceive);
+    return () => { socket.off("receive_private_message", handleReceive); };
+  }, [socket, activeIdx, isLoggedIn]);
 
+  // 3. Send Message to Socket & Database
   const handleSendMessage = () => {
     if (!inputText.trim()) return;
 
@@ -77,14 +112,15 @@ const Chat = () => {
       reactions: {}
     };
 
-    // 1. Update UI immediately
+    // Optimistic UI Update
     const updated = [...conversations];
     updated[activeIdx].messages.push(newMessage);
     setConversations(updated);
 
-    // 2. Send to Backend
+    // Emit to Backend
     if (socket && isLoggedIn) {
       socket.emit("send_private_message", {
+        senderId: currentUserId,
         recipientId: active.user.id,
         content: inputText
       });
@@ -104,7 +140,14 @@ const Chat = () => {
   return (
     <AppLayout>
       <div className="max-w-4xl mx-auto h-[calc(100vh-5rem)]">
-        <h1 className="text-3xl font-bold text-foreground mb-6">Chat</h1>
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-3xl font-bold text-foreground">Chat</h1>
+          {!isLoggedIn && (
+            <span className="text-xs bg-amber-500/10 border border-amber-500/20 text-amber-500 px-3 py-1 rounded-full font-medium">
+              Demo Mode (Mock Data)
+            </span>
+          )}
+        </div>
 
         <div className="flex gap-4 h-[calc(100%-4rem)]">
           {/* Sidebar */}
@@ -126,16 +169,16 @@ const Chat = () => {
                   <p className="text-xs text-muted-foreground truncate">
                     {conv.messages[conv.messages.length - 1]?.isVoiceNote
                       ? "🎤 Voice note"
-                      : conv.messages[conv.messages.length - 1]?.message}
+                      : conv.messages[conv.messages.length - 1]?.message || "Start chatting"}
                   </p>
                 </div>
               </button>
             ))}
           </div>
 
-          {/* Messages */}
-          <div className="flex-1 flex flex-col bg-card rounded-lg border border-border/50 overflow-hidden">
-            <div className="p-4 border-b border-border/50 flex items-center gap-3">
+          {/* Messages Area */}
+          <div className="flex-1 flex flex-col bg-card rounded-lg border border-border/50 overflow-hidden shadow-sm">
+            <div className="p-4 border-b border-border/50 flex items-center gap-3 bg-muted/20">
               <Avatar className="h-8 w-8">
                 <AvatarImage src={active.user.avatar} alt={active.user.name} />
                 <AvatarFallback>{active.user.name[0]}</AvatarFallback>
@@ -143,7 +186,7 @@ const Chat = () => {
               <p className="font-semibold text-foreground">{active.user.name}</p>
             </div>
             
-            <div className="flex-1 overflow-y-auto p-4">
+            <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
               {active.messages.map((m, i) => {
                 const key = `${activeIdx}-${i}`;
                 const mergedReactions = {
@@ -186,16 +229,17 @@ const Chat = () => {
               })}
             </div>
 
-            <div className="p-4 border-t border-border/50 flex gap-2 items-center">
+            <div className="p-4 border-t border-border/50 flex gap-2 items-center bg-muted/10">
               <VoiceNoteRecorder />
               <Input 
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
-                placeholder="Type a message..." 
-                className="bg-muted border-border" 
+                placeholder={isLoggedIn ? "Type a message..." : "Log in to chat..."} 
+                disabled={!isLoggedIn}
+                className="bg-background/50 border-border focus-visible:ring-primary" 
               />
-              <Button size="icon" onClick={handleSendMessage}>
+              <Button size="icon" onClick={handleSendMessage} disabled={!isLoggedIn}>
                 <Send className="h-4 w-4" />
               </Button>
             </div>
