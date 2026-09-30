@@ -34,10 +34,12 @@ const Chat = () => {
   const socket = useSocket();
   const [activeIdx, setActiveIdx] = useState(0);
   const [inputText, setInputText] = useState("");
-  const [conversations, setConversations] = useState(initialConversations);
+  const [conversations, setConversations] = useState(
+    mockUsers.map(user => ({ user, messages: [] }))
+  );
   const [messageReactions, setMessageReactions] = useState<Record<string, Record<string, number>>>({});
 
-  const currentUserId = localStorage.getItem("soundmatch_user_id");
+  const currentUserId = localStorage.getItem("soundmatch_user_id") || "101";
   const isLoggedIn = Boolean(currentUserId);
   const active = conversations[activeIdx];
 
