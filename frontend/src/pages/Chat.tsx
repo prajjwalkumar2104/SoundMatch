@@ -43,6 +43,44 @@ const Chat = () => {
   const isLoggedIn = Boolean(currentUserId);
   const active = conversations[activeIdx];
 
+
+  // 2. Fetch Chat History when a profile is clicked
+  useEffect(() => {
+    const fetchHistory = async () => {
+      const activeUser = conversations[activeIdx]?.user;
+      if (!activeUser) return;
+
+      try {
+        const res = await fetch(`http://127.0.0.1:5000/api/messages/${currentUserId}/${activeUser.id}`);
+        if (!res.ok) throw new Error("Failed to fetch history");
+        
+        const history = await res.json();
+        
+        // Map the Supabase rows to match your ChatBubble component's format
+        const formattedMessages = history.map((msg: any) => ({
+          sender: msg.sender_id === currentUserId ? "You" : activeUser.name,
+          message: msg.content,
+          isSelf: msg.sender_id === currentUserId,
+          time: new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          isVoiceNote: false, // Default to text, can expand for audio later
+          reactions: {}
+        }));
+
+        // Update the specific conversation with the real history
+        setConversations(prev => {
+          const updated = [...prev];
+          updated[activeIdx] = { ...updated[activeIdx], messages: formattedMessages };
+          return updated;
+        });
+
+      } catch (err) {
+        console.error("Failed to load chat history:", err);
+      }
+    };
+
+    fetchHistory();
+  }, [activeIdx, currentUserId]); // Re-runs when you switch chats
+  
   // 1. Fetch Chat History when clicking a profile
   useEffect(() => {
     const fetchHistory = async () => {
