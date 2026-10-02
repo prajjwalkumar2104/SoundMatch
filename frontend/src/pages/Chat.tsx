@@ -79,8 +79,7 @@ const Chat = () => {
     };
 
     fetchHistory();
-  }, [activeIdx, currentUserId]); // Re-runs when you switch chats
-  
+  }, [activeIdx, currentUserId]); // Re-runs when you want to switch chats
   // 1. Fetch Chat History when clicking a profile
   useEffect(() => {
     const fetchHistory = async () => {
