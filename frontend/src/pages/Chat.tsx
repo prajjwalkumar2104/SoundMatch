@@ -44,7 +44,7 @@ const Chat = () => {
   const active = conversations[activeIdx];
 
 
-  // 2. Fetch Chat History when a profile is clicked
+  // 2. Fetch Chat History when profile is clicked
   useEffect(() => {
     const fetchHistory = async () => {
       const activeUser = conversations[activeIdx]?.user;
