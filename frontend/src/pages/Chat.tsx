@@ -2,74 +2,84 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { ChatBubble } from "@/components/ChatBubble";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { mockUsers } from "@/data/mockUsers";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useState, useEffect } from "react";
-import { Send } from "lucide-react";
+import { Send, Loader2, MessageSquareOff } from "lucide-react";
 import { VoiceNotePlayer, VoiceNoteRecorder } from "@/components/VoiceNote";
 import { ReactionPicker } from "@/components/ReactionPicker";
 import { useSocket } from "@/contexts/SocketContext"; 
-
-const initialConversations = [
-  {
-    user: mockUsers[0],
-    messages: [
-      { sender: "Aria Chen", message: "Hey! Love your taste in music 🎶", isSelf: false, time: "1:20 PM", reactions: { "🔥": 1 } as Record<string, number> },
-      { sender: "You", message: "Thanks! Beach House is literally top tier", isSelf: true, time: "1:22 PM", reactions: {} as Record<string, number> },
-      { sender: "Aria Chen", message: "We should listen together sometime!", isSelf: false, time: "1:23 PM", reactions: { "❤️": 2, "🎸": 1 } as Record<string, number> },
-      { sender: "Aria Chen", message: "", isSelf: false, time: "1:25 PM", isVoiceNote: true, voiceDuration: "0:08", reactions: {} as Record<string, number> },
-    ],
-  },
-  {
-    user: mockUsers[2],
-    messages: [
-      { sender: "Luna Park", message: "Your jazz playlist is so good", isSelf: false, time: "11:05 AM", reactions: {} as Record<string, number> },
-      { sender: "You", message: "I'll share the full thing with you!", isSelf: true, time: "11:10 AM", reactions: { "🎹": 1 } as Record<string, number> },
-      { sender: "You", message: "", isSelf: true, time: "11:12 AM", isVoiceNote: true, voiceDuration: "0:15", reactions: {} as Record<string, number> },
-    ],
-  },
-];
+import { Link } from "react-router-dom";
 
 const Chat = () => {
   const socket = useSocket();
   const [activeIdx, setActiveIdx] = useState(0);
   const [inputText, setInputText] = useState("");
-  const [conversations, setConversations] = useState(
-    mockUsers.map(user => ({ user, messages: [] }))
-  );
   const [messageReactions, setMessageReactions] = useState<Record<string, Record<string, number>>>({});
+  
+  // 1. Initialize with an empty array and loading state
+  const [conversations, setConversations] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const currentUserId = localStorage.getItem("soundmatch_user_id") || "101";
   const isLoggedIn = Boolean(currentUserId);
-  const active = conversations[activeIdx];
+  const activeUserId = conversations[activeIdx]?.user?.id;
 
+  // 2. Fetch Real Matches for the Sidebar
+  useEffect(() => {
+    const fetchSidebarMatches = async () => {
+      if (!isLoggedIn) return;
+      try {
+        const res = await fetch(`http://127.0.0.1:5000/api/my-matches/${currentUserId}`);
+        if (!res.ok) throw new Error("Failed to fetch matches");
+        
+        const data = await res.json();
+        
+        if (data.matches && data.matches.length > 0) {
+          const realConversations = data.matches.map((dbUser: any) => ({
+            user: {
+              id: dbUser.id,
+              name: dbUser.username,
+              avatar: dbUser.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${dbUser.username}`
+            },
+            messages: [] 
+          }));
+          setConversations(realConversations);
+        }
+      } catch (err) {
+        console.error("Error fetching sidebar matches:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  // 2. Fetch Chat History when profile is clicked
+    fetchSidebarMatches();
+  }, [currentUserId, isLoggedIn]);
+
+  // 3. Fetch Chat History when a profile is clicked
   useEffect(() => {
     const fetchHistory = async () => {
-      const activeUser = conversations[activeIdx]?.user;
-      if (!activeUser) return;
+      if (!activeUserId || !isLoggedIn) return;
 
       try {
-        const res = await fetch(`http://127.0.0.1:5000/api/messages/${currentUserId}/${activeUser.id}`);
+        const res = await fetch(`http://127.0.0.1:5000/api/messages/${currentUserId}/${activeUserId}`);
         if (!res.ok) throw new Error("Failed to fetch history");
         
         const history = await res.json();
         
-        // Map the Supabase rows to match your ChatBubble component's format
         const formattedMessages = history.map((msg: any) => ({
-          sender: msg.sender_id === currentUserId ? "You" : activeUser.name,
+          sender: msg.sender_id === currentUserId ? "You" : conversations[activeIdx].user.name,
           message: msg.content,
           isSelf: msg.sender_id === currentUserId,
           time: new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          isVoiceNote: false, // Default to text, can expand for audio later
+          isVoiceNote: false, 
           reactions: {}
         }));
 
-        // Update the specific conversation with the real history
-        setConversations(prev => {
+        setConversations((prev) => {
           const updated = [...prev];
-          updated[activeIdx] = { ...updated[activeIdx], messages: formattedMessages };
+          if (updated[activeIdx]) {
+            updated[activeIdx].messages = formattedMessages;
+          }
           return updated;
         });
 
@@ -78,60 +88,28 @@ const Chat = () => {
       }
     };
 
-    fetchHistory();
-  }, [activeIdx, currentUserId]); // Re-runs when you want to switch chats
-  // 1. Fetch Chat History when clicking a profile
-  useEffect(() => {
-    const fetchHistory = async () => {
-      if (!isLoggedIn) return;
-      
-      const friendId = conversations[activeIdx].user.id;
-      
-      try {
-        const res = await fetch(`http://127.0.0.1:5000/api/messages/${currentUserId}/${friendId}`);
-        if (!res.ok) throw new Error("Failed to fetch history");
-        
-        const history = await res.json();
-        
-        // Map Supabase schema to Frontend schema
-        const formattedMessages = history.map((msg: any) => ({
-          sender: msg.sender_id === currentUserId ? "You" : conversations[activeIdx].user.name,
-          message: msg.content,
-          isSelf: msg.sender_id === currentUserId,
-          time: new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          reactions: {}
-        }));
+    if (conversations.length > 0) {
+      fetchHistory();
+    }
+  }, [activeIdx, activeUserId, currentUserId, isLoggedIn]);
 
-        setConversations((prev) => {
-          const updated = [...prev];
-          updated[activeIdx].messages = formattedMessages;
-          return updated;
-        });
-      } catch (err) {
-        console.error("Error fetching chat history:", err);
-      }
-    };
-
-    fetchHistory();
-  }, [activeIdx, isLoggedIn, currentUserId]);
-
-  // 2. Listen for Real-Time Incoming Messages
+  // 4. Listen for Real-Time Incoming Messages
   useEffect(() => {
     if (!socket || !isLoggedIn) return;
 
     const handleReceive = (data: any) => {
       setConversations((prev) => {
         const newConversations = [...prev];
-        // In a fully dynamic app, we'd find the index by data.senderId
-        // Assuming it's for the currently active chat for testing
-        newConversations[activeIdx].messages.push({
-          sender: data.senderName || "Friend",
-          message: data.content,
-          isSelf: false,
-          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          reactions: {}
-        });
-        return [...newConversations];
+        if (newConversations[activeIdx]) {
+          newConversations[activeIdx].messages.push({
+            sender: data.senderName || "Friend",
+            message: data.content,
+            isSelf: false,
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            reactions: {}
+          });
+        }
+        return newConversations;
       });
     };
 
@@ -139,10 +117,11 @@ const Chat = () => {
     return () => { socket.off("receive_private_message", handleReceive); };
   }, [socket, activeIdx, isLoggedIn]);
 
-  // 3. Send Message to Socket & Database
+  // 5. Send Message to Socket & Database
   const handleSendMessage = () => {
-    if (!inputText.trim()) return;
+    if (!inputText.trim() || conversations.length === 0) return;
 
+    const active = conversations[activeIdx];
     const newMessage = {
       sender: "You",
       message: inputText,
@@ -176,6 +155,39 @@ const Chat = () => {
     });
   };
 
+  // --- SAFETY GUARDS ---
+  if (loading) {
+    return (
+      <AppLayout>
+        <div className="flex flex-col h-[calc(100vh-5rem)] items-center justify-center space-y-4 text-muted-foreground">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p>Loading your conversations...</p>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  if (conversations.length === 0) {
+    return (
+      <AppLayout>
+        <div className="flex flex-col items-center justify-center h-[calc(100vh-5rem)] text-center space-y-4">
+          <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center">
+            <MessageSquareOff className="h-8 w-8 text-muted-foreground" />
+          </div>
+          <h2 className="text-2xl font-bold text-foreground">No Matches Yet</h2>
+          <p className="text-muted-foreground max-w-sm">
+            Swipe right on the Discover feed and get a mutual match to start chatting!
+          </p>
+          <Link to="/discover">
+            <Button>Find Matches</Button>
+          </Link>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  const active = conversations[activeIdx];
+
   return (
     <AppLayout>
       <div className="max-w-4xl mx-auto h-[calc(100vh-5rem)]">
@@ -200,7 +212,7 @@ const Chat = () => {
                 }`}
               >
                 <Avatar className="h-10 w-10">
-                  <AvatarImage src={conv.user.avatar} alt={conv.user.name} />
+                  <AvatarImage src={conv.user.avatar} alt={conv.user.name} className="object-cover" />
                   <AvatarFallback>{conv.user.name[0]}</AvatarFallback>
                 </Avatar>
                 <div className="min-w-0 flex-1">
@@ -219,14 +231,14 @@ const Chat = () => {
           <div className="flex-1 flex flex-col bg-card rounded-lg border border-border/50 overflow-hidden shadow-sm">
             <div className="p-4 border-b border-border/50 flex items-center gap-3 bg-muted/20">
               <Avatar className="h-8 w-8">
-                <AvatarImage src={active.user.avatar} alt={active.user.name} />
+                <AvatarImage src={active.user.avatar} alt={active.user.name} className="object-cover" />
                 <AvatarFallback>{active.user.name[0]}</AvatarFallback>
               </Avatar>
               <p className="font-semibold text-foreground">{active.user.name}</p>
             </div>
             
             <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
-              {active.messages.map((m, i) => {
+              {active.messages.map((m: any, i: number) => {
                 const key = `${activeIdx}-${i}`;
                 const mergedReactions = {
                   ...m.reactions,
