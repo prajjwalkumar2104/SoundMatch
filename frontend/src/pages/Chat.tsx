@@ -93,7 +93,7 @@ const Chat = () => {
     }
   }, [activeIdx, activeUserId, currentUserId, isLoggedIn]);
 
-  // 4. Listen for Real-Time Incoming Messages
+  // 4. Listen for Real-Time Incoming Message
   useEffect(() => {
     if (!socket || !isLoggedIn) return;
 
