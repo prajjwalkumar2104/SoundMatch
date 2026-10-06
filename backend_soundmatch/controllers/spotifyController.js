@@ -79,30 +79,69 @@ exports.spotifyCallback = async (req, res) => {
   }
 };
 
+
 exports.getStats = async (req, res) => {
-  const token = req.headers.authorization;
-  try {
-    const topTracks = await axios.get(
-      "https://api.spotify.com/v1/me/top/tracks",
-      {
-        headers: { Authorization: token },
-      },
-    );
-    const recent = await axios.get(
-      "https://api.spotify.com/v1/me/player/recently-played",
-      {
-        headers: { Authorization: token },
-      },
-    );
-    res.json({
-      topTracks: topTracks.data.items || [],
-      recent: recent.data.items || [],
-    });
-  } catch (error) {
-    console.error("Stats Error:", error.message);
-    res.status(500).json({ error: "Failed to fetch stats" });
-  }
+    const token = req.headers.authorization;
+    if (!token) return res.status(401).json({ error: "No Spotify token provided" });
+
+    try {
+        // Fetch all 3 data points concurrently from Spotify
+        const [tracksRes, artistsRes, recentRes] = await Promise.all([
+            fetch('https://api.spotify.com/v1/me/top/tracks?time_range=short_term&limit=5', { 
+                headers: { Authorization: token } 
+            }),
+            fetch('https://api.spotify.com/v1/me/top/artists?time_range=short_term&limit=5', { 
+                headers: { Authorization: token } 
+            }),
+            fetch('https://api.spotify.com/v1/me/player/recently-played?limit=10', { 
+                headers: { Authorization: token } 
+            })
+        ]);
+
+        const topTracks = await tracksRes.json();
+        const topArtists = await artistsRes.json();
+        const recent = await recentRes.json();
+
+        // Extract and flatten the genres array from your top artists
+        const rawGenres = topArtists.items?.flatMap(artist => artist.genres) || [];
+        const uniqueGenres = [...new Set(rawGenres)].slice(0, 6); // Keep the top 6
+
+        res.status(200).json({
+            topTracks: topTracks.items || [],
+            topArtists: topArtists.items || [],
+            recentTracks: recent.items || [],
+            topGenres: uniqueGenres
+        });
+    } catch (error) {
+        console.error("Stats API Error:", error.message);
+        res.status(500).json({ error: "Failed to fetch Spotify stats" });
+    }
 };
+
+// exports.getStats = async (req, res) => {
+//   const token = req.headers.authorization;
+//   try {
+//     const topTracks = await axios.get(
+//       "https://api.spotify.com/v1/me/top/tracks",
+//       {
+//         headers: { Authorization: token },
+//       },
+//     );
+//     const recent = await axios.get(
+//       "https://api.spotify.com/v1/me/player/recently-played",
+//       {
+//         headers: { Authorization: token },
+//       },
+//     );
+//     res.json({
+//       topTracks: topTracks.data.items || [],
+//       recent: recent.data.items || [],
+//     });
+//   } catch (error) {
+//     console.error("Stats Error:", error.message);
+//     res.status(500).json({ error: "Failed to fetch stats" });
+//   }
+// };
 
 exports.getTopTracks = async (req, res) => {
   try {
