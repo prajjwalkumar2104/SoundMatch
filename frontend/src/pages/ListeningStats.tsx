@@ -1,139 +1,193 @@
-import { useState, useEffect } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
-import { Flame, Clock, Music, Disc3, Loader2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { useState, useEffect } from "react";
+import { Loader2, Clock, Music2, TrendingUp, Mic2, AlertCircle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Link } from "react-router-dom";
 
-const StatCard = ({ icon: Icon, label, value, sub }: any) => (
-  <Card className="border-border/50 bg-card/50 backdrop-blur-md">
-    <CardContent className="p-4 flex items-center gap-4">
-      <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-        <Icon className="h-5 w-5 text-primary" />
-      </div>
-      <div>
-        <p className="text-2xl font-bold text-foreground">{value}</p>
-        <p className="text-xs text-muted-foreground">{label}</p>
-        {sub && <p className="text-[10px] text-primary mt-0.5 font-medium">{sub}</p>}
-      </div>
-    </CardContent>
-  </Card>
-);
-
-const ListeningStats = () => {
-  const [stats, setStats] = useState({
-    totalMinutes: 0,
-    totalTracks: 0,
-    totalArtists: 0,
-    vibeScore: 0,
-    weeklyListening: [] as any[]
-  });
-  
+export default function ListeningStats() {
+  const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [isRealData, setIsRealData] = useState(false);
+  const [error, setError] = useState(false);
+  const isLoggedIn = Boolean(localStorage.getItem("soundmatch_user_id"));
 
   useEffect(() => {
-    const fetchRealData = async () => {
-      const token = localStorage.getItem("spotify_access_token");
-      if (!token) {
+    const fetchStats = async () => {
+      if (!isLoggedIn) {
         setLoading(false);
         return;
       }
 
+      const token = localStorage.getItem("spotify_access_token");
       try {
-        const res = await fetch("http://127.0.0.1:5000/api/spotify/stats", {
+        const res = await fetch('http://127.0.0.1:5000/api/spotify/stats', {
           headers: { Authorization: `Bearer ${token}` }
         });
         
         if (!res.ok) throw new Error("Failed to fetch stats");
-        const data = await res.json();
-
-        // Safely extract arrays from backend response
-        const topTracks = data.topTracks || [];
-        const recent = data.recent || [];
-
-        // 1. Calculate Total Minutes (Sum of top tracks duration)
-        const totalMs = topTracks.reduce((acc: number, track: any) => acc + (track.duration_ms || 0), 0);
-        const calculatedMinutes = Math.floor(totalMs / 60000);
-
-        // 2. Count Unique Artists using a Set
-        const uniqueArtists = new Set(topTracks.map((t: any) => t.artists?.[0]?.name).filter(Boolean));
-
-        // 3. Generate dynamic chart data based on your average listening
-        const baseMin = Math.max(10, Math.floor(calculatedMinutes / 7));
-        const chartData = [
-          { day: "Mon", minutes: baseMin + 15 },
-          { day: "Tue", minutes: baseMin - 5 },
-          { day: "Wed", minutes: baseMin + 30 },
-          { day: "Thu", minutes: baseMin + 10 },
-          { day: "Fri", minutes: baseMin + 45 },
-          { day: "Sat", minutes: baseMin + 80 },
-          { day: "Sun", minutes: baseMin + 20 },
-        ];
-
-        setStats({
-          totalMinutes: calculatedMinutes > 0 ? calculatedMinutes : 1240, // Fallback if data is too small
-          totalTracks: topTracks.length + recent.length,
-          totalArtists: uniqueArtists.size,
-          vibeScore: Math.min(98, topTracks.length * 2 + 40), // Generates a fun vibe score based on track volume
-          weeklyListening: chartData
-        });
         
-        setIsRealData(true);
+        const data = await res.json();
+        setStats(data);
       } catch (err) {
         console.error("Stats fetch error:", err);
+        setError(true);
       } finally {
         setLoading(false);
       }
     };
-    
-    fetchRealData();
-  }, []);
+
+    fetchStats();
+  }, [isLoggedIn]);
+
+  if (loading) {
+    return (
+      <AppLayout>
+        <div className="flex h-[60vh] flex-col items-center justify-center space-y-4">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-muted-foreground">Compiling your weekly report...</p>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  if (!isLoggedIn || error) {
+    return (
+      <AppLayout>
+        <div className="flex flex-col items-center justify-center h-[60vh] text-center space-y-4">
+          <AlertCircle className="h-12 w-12 text-muted-foreground" />
+          <h2 className="text-2xl font-bold text-foreground">Analytics Unavailable</h2>
+          <p className="text-muted-foreground max-w-sm">
+            {error ? "There was a problem syncing your Spotify data." : "Connect your Spotify account to see your deep listening analytics."}
+          </p>
+          <Link to="/me">
+            <Button>Go to Profile Settings</Button>
+          </Link>
+        </div>
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout>
-      <div className="max-w-4xl mx-auto pb-10">
-        <div className="flex justify-between items-end mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-foreground mb-1">
-              {isRealData ? "Your Music DNA" : "Listening Stats"}
-            </h1>
-            <p className="text-muted-foreground">
-              {isRealData ? "Synced with Spotify" : "Mock Data (Connect Spotify for real stats)"}
-            </p>
-          </div>
-          {loading && <Loader2 className="h-5 w-5 animate-spin text-primary mb-2" />}
+      <div className="max-w-5xl mx-auto pb-12">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">Weekly Report</h1>
+          <p className="text-muted-foreground">Your sonic footprint over the last 7 days.</p>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
-          <StatCard icon={Clock} label="Minutes" value={stats.totalMinutes.toLocaleString()} />
-          <StatCard icon={Music} label="Tracks" value={String(stats.totalTracks)} />
-          <StatCard icon={Disc3} label="Artists" value={String(stats.totalArtists)} />
-          <StatCard icon={Flame} label="Vibe Score" value={`${stats.vibeScore}%`} sub="Real-time" />
-        </div>
-
-        <div className="grid gap-4 md:grid-cols-2">
-          {/* Activity Chart */}
-          <Card className="border-border/50 h-64">
-             <CardHeader><CardTitle className="text-xs uppercase">Activity</CardTitle></CardHeader>
-             <CardContent className="h-40">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={stats.weeklyListening}>
-                    <XAxis dataKey="day" hide />
-                    <Tooltip 
-                      cursor={{ fill: 'rgba(255,255,255,0.05)' }}
-                      contentStyle={{ backgroundColor: 'hsl(var(--card))', border: 'none', borderRadius: '8px' }} 
-                    />
-                    <Bar dataKey="minutes" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-             </CardContent>
+        {/* Top Metric Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+          <Card className="bg-primary/5 border-primary/20">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between space-y-0 pb-2">
+                <p className="text-sm font-medium tracking-tight">Top Genre</p>
+                <TrendingUp className="h-4 w-4 text-primary" />
+              </div>
+              <div className="text-2xl font-bold capitalize">{stats?.topGenres?.[0] || "Mixed"}</div>
+              <p className="text-xs text-muted-foreground mt-1">Driving your DNA score</p>
+            </CardContent>
           </Card>
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between space-y-0 pb-2">
+                <p className="text-sm font-medium tracking-tight">Recent Streams</p>
+                <Music2 className="h-4 w-4 text-muted-foreground" />
+              </div>
+              <div className="text-2xl font-bold">{stats?.recentTracks?.length || 0}</div>
+              <p className="text-xs text-muted-foreground mt-1">Tracks logged in history</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between space-y-0 pb-2">
+                <p className="text-sm font-medium tracking-tight">Top Artist</p>
+                <Mic2 className="h-4 w-4 text-muted-foreground" />
+              </div>
+              <div className="text-2xl font-bold truncate">{stats?.topArtists?.[0]?.name || "N/A"}</div>
+              <p className="text-xs text-muted-foreground mt-1">Most heavily rotated</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           
-          {/* Add more charts here if needed */}
+          {/* Left Column (Genres & Artists) */}
+          <div className="space-y-6 lg:col-span-1">
+            <Card className="border-border/50">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-bold text-muted-foreground uppercase tracking-widest">
+                  Genre Cloud
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-wrap gap-2">
+                  {(stats?.topGenres || []).map((genre: string, idx: number) => (
+                    <Badge key={idx} variant={idx === 0 ? "default" : "secondary"} className="capitalize px-3 py-1 text-xs">
+                      {genre}
+                    </Badge>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-border/50">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-bold text-muted-foreground uppercase tracking-widest">
+                  Heavy Rotation (Artists)
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {(stats?.topArtists || []).map((artist: any, i: number) => (
+                  <div key={i} className="flex items-center gap-4">
+                    <img src={artist.images?.[0]?.url} alt={artist.name} className="h-10 w-10 rounded-full object-cover border border-border" />
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold truncate">{artist.name}</p>
+                      <p className="text-xs text-muted-foreground capitalize">{artist.genres?.[0] || "Artist"}</p>
+                    </div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Right Column (Recently Played Timeline) */}
+          <Card className="lg:col-span-2 border-border/50">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
+                <Clock className="h-4 w-4" /> Live Listening Timeline
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="relative border-l border-border/50 ml-3 space-y-6 pb-4">
+                {(stats?.recentTracks || []).map((item: any, i: number) => {
+                  const track = item.track;
+                  const playedAt = new Date(item.played_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                  
+                  return (
+                    <div key={i} className="relative pl-6 group">
+                      {/* Timeline Dot */}
+                      <span className="absolute -left-[5px] top-2 h-2.5 w-2.5 rounded-full bg-primary ring-4 ring-background group-hover:scale-125 transition-transform" />
+                      
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-4 bg-muted/20 p-3 rounded-lg border border-border/50 hover:bg-muted/40 transition-colors">
+                        <img src={track.album?.images?.[0]?.url} alt={track.name} className="h-12 w-12 rounded shadow-sm shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold truncate text-foreground">{track.name}</p>
+                          <p className="text-xs text-muted-foreground truncate">{track.artists?.[0]?.name}</p>
+                        </div>
+                        <div className="text-xs font-mono text-muted-foreground whitespace-nowrap bg-background px-2 py-1 rounded">
+                          {playedAt}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+
         </div>
       </div>
     </AppLayout>
   );
-};
-
-export default ListeningStats;
+}
