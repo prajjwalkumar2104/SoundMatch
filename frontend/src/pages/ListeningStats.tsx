@@ -114,7 +114,7 @@ const ListeningStats = () => {
         <div className="grid gap-4 md:grid-cols-2">
           {/* Activity Chart */}
           <Card className="border-border/50 h-64">
-             <CardHeader><CardTitle className="text-xs uppercase">Activity</CardTitle></CardHeader>
+             <CardHeader><CardTitle className="text-xs uppercase">Activities</CardTitle></CardHeader>
              <CardContent className="h-40">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={stats.weeklyListening}>
